@@ -1,16 +1,68 @@
-"""TrainerClient integration with MCP tools and skills."""
+"""TrainerClient integration with MCP tools and skills.
 
-from kubeflow_mcp.trainer.api.planning import get_cluster_resources
+Structure mirrors kubeflow/trainer/:
+├── api/           # Tool implementations
+├── types/         # Type definitions
+└── constants/     # Constants
+"""
+
+from kubeflow_mcp.trainer.api.discovery import (
+    get_runtime,
+    get_runtime_packages,
+    get_training_job,
+    list_runtimes,
+    list_training_jobs,
+)
+from kubeflow_mcp.trainer.api.lifecycle import (
+    delete_training_job,
+    resume_training_job,
+    suspend_training_job,
+)
+from kubeflow_mcp.trainer.api.monitoring import (
+    get_training_events,
+    get_training_logs,
+    wait_for_training,
+)
+from kubeflow_mcp.trainer.api.planning import estimate_resources, get_cluster_resources
+from kubeflow_mcp.trainer.api.training import (
+    fine_tune,
+    run_container_training,
+    run_custom_training,
+)
 
 MODULE_INFO = {
     "name": "trainer",
-    "description": "Training job management (Kubeflow Training Operator)",
+    "description": "Distributed training and LLM fine-tuning (wraps TrainerClient)",
     "sdk_client": "kubeflow.trainer.TrainerClient",
     "status": "implemented",
 }
 
 TOOLS = [
+    # planning.py
     get_cluster_resources,
+    estimate_resources,
+    # training.py
+    fine_tune,
+    run_custom_training,
+    run_container_training,
+    # discovery.py
+    list_training_jobs,
+    get_training_job,
+    list_runtimes,
+    get_runtime,
+    get_runtime_packages,
+    # monitoring.py
+    get_training_logs,
+    get_training_events,
+    wait_for_training,
+    # lifecycle.py
+    delete_training_job,
+    suspend_training_job,
+    resume_training_job,
 ]
 
-__all__ = ["MODULE_INFO", "TOOLS", "get_cluster_resources"]
+__all__ = [
+    "MODULE_INFO",
+    "TOOLS",
+    *[t.__name__ for t in TOOLS],
+]
