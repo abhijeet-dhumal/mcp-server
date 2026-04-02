@@ -1,53 +1,84 @@
 # Kubeflow MCP Server
 
-> ⚠️ **Experimental** - Under active development
-
 AI-powered interface for Kubeflow Training via [Model Context Protocol](https://modelcontextprotocol.io/).
-
-## Overview
-
-This MCP server enables LLM agents (Claude, Cursor, etc.) to interact with Kubeflow Training through natural language. It wraps the [Kubeflow SDK](https://github.com/kubeflow/sdk) with MCP tools for fine-tuning, training job management, and monitoring.
-
-## Status
-
-| Component | Status |
-|-----------|--------|
-| Core Infrastructure | 🚧 In Progress |
-| TrainerClient Tools | 🚧 In Progress |
-| OptimizerClient Tools | ⬜ Planned (Contributors Welcome) |
-| ModelRegistryClient Tools | ⬜ Planned (Contributors Welcome) |
 
 ## Quick Start
 
 ```bash
 # Install
-pip install kubeflow-mcp[trainer]
+uv sync
 
 # Run
-kubeflow-mcp serve --clients trainer
+uv run kubeflow-mcp serve
 ```
+
+## Usage
+
+### With Cursor/Claude Desktop
+
+Add to `~/.cursor/mcp.json` (or `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "kubeflow": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/mcp-server", "kubeflow-mcp", "serve"]
+    }
+  }
+}
+```
+
+### With MCP Inspector
+
+```bash
+npx @modelcontextprotocol/inspector uv run kubeflow-mcp serve
+# Open http://localhost:6274
+```
+
+### CLI Options
+
+```bash
+kubeflow-mcp serve \
+  --clients trainer \
+  --persona ml-engineer \
+  --log-level INFO
+```
+
+## Tools (16)
+
+| Category | Tools |
+|----------|-------|
+| Planning | `get_cluster_resources`, `estimate_resources` |
+| Training | `fine_tune`, `run_custom_training`, `run_container_training` |
+| Discovery | `list_training_jobs`, `get_training_job`, `list_runtimes`, `get_runtime`, `get_runtime_packages` |
+| Monitoring | `get_training_logs`, `get_training_events`, `wait_for_training` |
+| Lifecycle | `delete_training_job`, `suspend_training_job`, `resume_training_job` |
+
+## Skills
+
+Reference in Cursor with `@skills/trainer/SKILL.md`:
+- `SKILL.md` - Tool overview and workflows
+- `fine-tuning.md` - Fine-tuning guide
+- `custom-training.md` - Custom scripts
+- `troubleshooting.md` - Error recovery
 
 ## Development
 
 ```bash
-# Clone
-git clone https://github.com/abhijeet-dhumal/mcp-server.git
-cd mcp-server
-
-# Setup
 uv sync --all-extras
-
-# Test
 uv run pytest
-
-# Lint
 uv run ruff check .
 ```
 
-## Contributing
+## Status
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+| Component | Status |
+|-----------|--------|
+| TrainerClient (16 tools) | ✅ Complete |
+| OptimizerClient | ⬜ Contributors Welcome |
+| ModelRegistryClient | ⬜ Contributors Welcome |
 
 ## License
 
-Apache License 2.0 - See [LICENSE](LICENSE)
+Apache-2.0
