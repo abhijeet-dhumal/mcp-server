@@ -37,7 +37,7 @@ def create_server(
     Returns:
         Configured FastMCP server instance
     """
-    mcp = FastMCP("kubeflow-mcp")
+    mcp: FastMCP = FastMCP("kubeflow-mcp")
     allowed_tools = get_allowed_tools(persona)
 
     if clients is None:

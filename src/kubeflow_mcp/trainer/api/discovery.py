@@ -37,7 +37,7 @@ def list_training_jobs(
     """
     try:
         client = get_trainer_client()
-        jobs = client.list_jobs(runtime=runtime) if runtime else client.list_jobs()
+        jobs = client.list_jobs(runtime=runtime) if runtime else client.list_jobs()  # type: ignore[arg-type]
 
         job_list = []
         for job in jobs:

@@ -116,7 +116,7 @@ def validate_resource_limits(
 def mask_sensitive_data(data: dict[str, Any]) -> dict[str, Any]:
     """Mask sensitive fields in data for logging."""
     sensitive_keys = {"token", "password", "secret", "key", "credential"}
-    result = {}
+    result: dict[str, Any] = {}
 
     for k, v in data.items():
         if any(s in k.lower() for s in sensitive_keys):

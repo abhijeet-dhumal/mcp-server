@@ -19,7 +19,7 @@ class StructuredFormatter(logging.Formatter):
     """JSON formatter for production."""
 
     def format(self, record: logging.LogRecord) -> str:
-        log_dict = {
+        log_dict: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,

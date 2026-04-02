@@ -224,9 +224,10 @@ def run_container_training(
                 config=config,
             ).model_dump()
 
+        # Note: SDK 0.4.0 CustomTrainerContainer doesn't support custom command
+        # The command should be baked into the container image's ENTRYPOINT/CMD
         trainer = CustomTrainerContainer(
             image=image,
-            command=command,
             num_nodes=num_nodes,
             resources_per_node={"gpu": gpu_per_node} if gpu_per_node > 0 else None,
             env=env,

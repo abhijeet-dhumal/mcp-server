@@ -63,7 +63,7 @@ def create_tools() -> list[FunctionTool]:
         desc = doc.split("\n")[0] if doc else tool_func.__name__
 
         func_tool = FunctionTool.from_defaults(
-            fn=tool_func,
+            fn=tool_func,  # type: ignore[arg-type]
             name=tool_func.__name__,
             description=desc,
         )
@@ -86,6 +86,12 @@ def _format_tool_result(result: Any, max_lines: int = 15) -> str:
 
 class OllamaAgent:
     """Ollama agent using LlamaIndex FunctionAgent with thinking support."""
+
+    _agent: FunctionAgent | None
+    _tools: list[FunctionTool] | None
+    _thinking_supported: bool | None
+    memory: ChatMemoryBuffer | None
+    llm: Ollama | None
 
     def __init__(self, model: str = DEFAULT_MODEL, base_url: str = DEFAULT_URL):
         self.model = model
@@ -115,7 +121,7 @@ class OllamaAgent:
             thinking=with_thinking,
         )
 
-    def _ensure_agent(self, with_thinking: bool = None):
+    def _ensure_agent(self, with_thinking: bool | None = None):
         """Lazy initialization of agent."""
         if self._agent is not None:
             return
@@ -133,7 +139,7 @@ class OllamaAgent:
             self.memory = ChatMemoryBuffer.from_defaults(token_limit=8000)
 
             self._agent = FunctionAgent(
-                tools=self._tools,
+                tools=self._tools,  # type: ignore[arg-type]
                 llm=self.llm,
                 memory=self.memory,
                 system_prompt=SYSTEM_PROMPT,
@@ -155,7 +161,7 @@ class OllamaAgent:
                 use_thinking = enabled and (self._thinking_supported is not False)
                 self.llm = self._create_llm(use_thinking)
                 self._agent = FunctionAgent(
-                    tools=self._tools,
+                    tools=self._tools,  # type: ignore[arg-type]
                     llm=self.llm,
                     memory=self.memory,
                     system_prompt=SYSTEM_PROMPT,
@@ -187,6 +193,7 @@ class OllamaAgent:
         seen_tools = set()
 
         try:
+            assert self._agent is not None
             handler = self._agent.run(user_msg=message, memory=self.memory)
 
             async for event in handler.stream_events():
@@ -344,7 +351,8 @@ def run_chat(model: str = DEFAULT_MODEL, url: str = DEFAULT_URL):
     console.print("[bright_cyan]Loading tools...[/bright_cyan]", end="\r")
     try:
         agent._ensure_agent()
-        console.print(f"[bright_green]✓ Loaded {len(agent._tools)} tools[/bright_green]")
+        tools_count = len(agent._tools) if agent._tools else 0
+        console.print(f"[bright_green]✓ Loaded {tools_count} tools[/bright_green]")
     except Exception as e:
         console.print(f"[bright_red]✗ Failed to initialize: {e}[/bright_red]")
         return
@@ -356,7 +364,7 @@ def run_chat(model: str = DEFAULT_MODEL, url: str = DEFAULT_URL):
 
     # State
     show_thinking = True
-    thinking_buffer = []
+    thinking_buffer: list[str] = []
 
     while True:
         try:
@@ -372,8 +380,9 @@ def run_chat(model: str = DEFAULT_MODEL, url: str = DEFAULT_URL):
                 break
 
             if user_input.lower() == "/tools":
-                console.print(f"\n[bold]Available tools ({len(agent._tools)}):[/bold]")
-                for t in agent._tools:
+                tools = agent._tools or []
+                console.print(f"\n[bold]Available tools ({len(tools)}):[/bold]")
+                for t in tools:
                     console.print(f"  [bright_cyan]{t.metadata.name}[/bright_cyan]")
                 continue
 
