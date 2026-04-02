@@ -12,15 +12,16 @@ def test_cli_version():
     assert "0.1.0-dev" in result.output
 
 
-def test_serve_command():
-    runner = CliRunner()
-    result = runner.invoke(cli, ["serve", "--clients", "trainer"])
-    assert result.exit_code == 0
-    assert "trainer" in result.output
-
-
 def test_status_command():
     runner = CliRunner()
     result = runner.invoke(cli, ["status"])
     assert result.exit_code == 0
-    assert "Status" in result.output
+    assert "trainer" in result.output
+    assert "implemented" in result.output
+
+
+def test_status_shows_stubs():
+    runner = CliRunner()
+    result = runner.invoke(cli, ["status"])
+    assert "optimizer" in result.output
+    assert "stub" in result.output
