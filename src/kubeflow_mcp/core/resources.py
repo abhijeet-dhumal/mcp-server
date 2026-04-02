@@ -17,7 +17,9 @@ def register_skill_resources(mcp: "FastMCP", clients: list[str]) -> None:
     """Register skill files as MCP resources.
 
     Skills are markdown instruction files that LLMs read to understand
-    how to use tools effectively.
+    how to use tools effectively. They can be accessed via:
+    - File reference: @skills/trainer/SKILL.md
+    - MCP resource: skill://trainer/SKILL (if supported)
 
     Args:
         mcp: FastMCP server instance
@@ -28,26 +30,14 @@ def register_skill_resources(mcp: "FastMCP", clients: list[str]) -> None:
         logger.debug(f"Skills directory not found: {skills_path}")
         return
 
-    registered = 0
+    available_skills = []
     for client in clients:
         client_skills = skills_path / client
         if not client_skills.exists():
             continue
 
         for skill_file in client_skills.glob("*.md"):
-            resource_uri = f"skill://{client}/{skill_file.stem}"
+            available_skills.append(f"{client}/{skill_file.name}")
 
-            try:
-
-                @mcp.resource(resource_uri)
-                def read_skill(path: Path = skill_file) -> str:
-                    return path.read_text()
-
-                registered += 1
-                logger.debug(f"Registered skill: {resource_uri}")
-
-            except Exception as e:
-                logger.warning(f"Failed to register skill {skill_file}: {e}")
-
-    if registered:
-        logger.info(f"Registered {registered} skill resources")
+    if available_skills:
+        logger.info(f"Available skills: {', '.join(available_skills)}")
