@@ -2,21 +2,17 @@
 
 AI-powered interface for Kubeflow Training via [Model Context Protocol](https://modelcontextprotocol.io/).
 
-## Quick Start
+## Installation
 
 ```bash
-# Install
 uv sync
-
-# Run
-uv run kubeflow-mcp serve
 ```
 
 ## Usage
 
-### With Cursor/Claude Desktop
+### Cursor / Claude Desktop
 
-Add to `~/.cursor/mcp.json` (or `claude_desktop_config.json`):
+Add to `~/.cursor/mcp.json`:
 
 ```json
 {
@@ -29,23 +25,26 @@ Add to `~/.cursor/mcp.json` (or `claude_desktop_config.json`):
 }
 ```
 
-### With MCP Inspector
+### MCP Inspector
 
 ```bash
 npx @modelcontextprotocol/inspector uv run kubeflow-mcp serve
-# Open http://localhost:6274
 ```
 
-### CLI Options
+### Local Agent (Ollama)
 
 ```bash
-kubeflow-mcp serve \
-  --clients trainer \
-  --persona ml-engineer \
-  --log-level INFO
+uv sync --extra agents
+uv run python -m kubeflow_mcp.agents.ollama --model qwen2.5:7b
 ```
 
-## Tools (16)
+### CLI
+
+```bash
+kubeflow-mcp serve --clients trainer --persona ml-engineer
+```
+
+## Tools
 
 | Category | Tools |
 |----------|-------|
@@ -57,11 +56,7 @@ kubeflow-mcp serve \
 
 ## Skills
 
-Reference in Cursor with `@skills/trainer/SKILL.md`:
-- `SKILL.md` - Tool overview and workflows
-- `fine-tuning.md` - Fine-tuning guide
-- `custom-training.md` - Custom scripts
-- `troubleshooting.md` - Error recovery
+Reference with `@skills/trainer/SKILL.md` in Cursor.
 
 ## Development
 
@@ -75,9 +70,9 @@ uv run ruff check .
 
 | Component | Status |
 |-----------|--------|
-| TrainerClient (16 tools) | ✅ Complete |
-| OptimizerClient | ⬜ Contributors Welcome |
-| ModelRegistryClient | ⬜ Contributors Welcome |
+| TrainerClient | ✅ 16 tools |
+| OptimizerClient | ⬜ Contributors welcome |
+| ModelRegistryClient | ⬜ Contributors welcome |
 
 ## License
 
