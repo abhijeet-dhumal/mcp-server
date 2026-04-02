@@ -1,0 +1,1 @@
+"""ModelRegistryClient integration - Contributor implementation."""

@@ -1,0 +1,8 @@
+# Kubeflow MCP Server Maintainers
+# See https://www.kubeflow.org/docs/about/contributing/ for guidelines
+
+approvers:
+  - abhijeet-dhumal
+
+reviewers:
+  - abhijeet-dhumal

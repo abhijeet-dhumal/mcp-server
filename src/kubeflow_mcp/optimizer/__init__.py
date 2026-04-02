@@ -1,0 +1,1 @@
+"""OptimizerClient integration - Contributor implementation."""
