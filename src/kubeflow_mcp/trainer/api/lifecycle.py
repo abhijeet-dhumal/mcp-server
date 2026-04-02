@@ -1,6 +1,6 @@
 """Lifecycle tools for training job management.
 
-Maps to TrainerClient methods:
+Maps to TrainerClient methods (SDK 0.4.0):
 - delete_training_job() → TrainerClient.delete_job()
 - suspend_training_job() → Kubernetes suspend patch
 - resume_training_job() → Kubernetes resume patch
@@ -13,10 +13,7 @@ from kubeflow_mcp.common.types import ToolError, ToolResponse
 from kubeflow_mcp.common.utils import get_trainer_client
 
 
-def delete_training_job(
-    name: str,
-    namespace: str | None = None,
-) -> dict[str, Any]:
+def delete_training_job(name: str) -> dict[str, Any]:
     """Deletes a training job and its associated resources.
 
     Removes the job, pods, and any associated ConfigMaps/Secrets.
@@ -24,7 +21,6 @@ def delete_training_job(
 
     Args:
         name: Name of the training job to delete.
-        namespace: Kubernetes namespace. Uses kubeconfig default if not set.
 
     Returns:
         JSON with {job: str, deleted: bool, message: str}
@@ -34,12 +30,11 @@ def delete_training_job(
     """
     try:
         client = get_trainer_client()
-        client.delete_job(name=name, namespace=namespace)
+        client.delete_job(name=name)
 
         return ToolResponse(
             data={
                 "job": name,
-                "namespace": namespace or "default",
                 "deleted": True,
                 "message": f"Training job '{name}' deleted successfully",
             }

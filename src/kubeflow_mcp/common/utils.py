@@ -2,8 +2,6 @@
 
 Mirrors kubeflow SDK's client structure:
 - TrainerClient from kubeflow.trainer
-- OptimizerClient from kubeflow.optimizer
-- ModelRegistryClient from kubeflow.hub
 """
 
 from functools import lru_cache

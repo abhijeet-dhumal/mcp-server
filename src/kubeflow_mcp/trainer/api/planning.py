@@ -2,7 +2,7 @@
 
 Maps to cluster inspection functionality:
 - get_cluster_resources() → K8s node inspection
-- estimate_resources() → Model-based resource estimation
+- estimate_resources() → Model-based resource estimation (via HuggingFace API)
 """
 
 from typing import Any
@@ -10,16 +10,81 @@ from typing import Any
 from kubeflow_mcp.common.constants import ErrorCode
 from kubeflow_mcp.common.types import ToolError, ToolResponse
 
-MODEL_RESOURCE_ESTIMATES = {
-    "llama-3.2-1b": {"gpu": 1, "memory": "16Gi", "gpu_memory": "8GB"},
-    "llama-3.2-3b": {"gpu": 1, "memory": "24Gi", "gpu_memory": "16GB"},
-    "llama-3.1-8b": {"gpu": 2, "memory": "48Gi", "gpu_memory": "40GB"},
-    "llama-3.1-70b": {"gpu": 8, "memory": "256Gi", "gpu_memory": "160GB"},
-    "mistral-7b": {"gpu": 1, "memory": "32Gi", "gpu_memory": "24GB"},
-    "gemma-2b": {"gpu": 1, "memory": "16Gi", "gpu_memory": "8GB"},
-    "gemma-7b": {"gpu": 1, "memory": "32Gi", "gpu_memory": "24GB"},
-    "phi-3-mini": {"gpu": 1, "memory": "16Gi", "gpu_memory": "8GB"},
-}
+
+def _get_model_info_from_hf(model: str) -> dict[str, Any] | None:
+    """Fetch model info from HuggingFace Hub."""
+    try:
+        from huggingface_hub import model_info
+
+        info = model_info(model)
+
+        # Get parameter count from safetensors metadata
+        params = None
+        if info.safetensors:
+            params = info.safetensors.total
+
+        # Try card_data for parameter count
+        if not params and info.card_data:
+            params = getattr(info.card_data, "num_parameters", None)
+
+        return {
+            "model_id": info.id,
+            "params": params,
+            "library": getattr(info, "library_name", None),
+            "pipeline": getattr(info, "pipeline_tag", None),
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _estimate_from_params(params: float, batch_size: int = 4) -> dict[str, Any]:
+    """Estimate resources based on parameter count.
+
+    Rules of thumb for LoRA fine-tuning with bf16:
+    - GPU memory ≈ params * 2 bytes (weights) + activations + overhead
+    - Each billion params ≈ 4-6GB GPU memory for LoRA training
+    - Full fine-tuning needs 4-6x more (gradients + optimizer states)
+    """
+    params_b = params / 1e9  # Convert to billions
+
+    # GPU memory estimation (training with LoRA, bf16)
+    # Base: ~4GB per billion params + 2GB overhead
+    gpu_memory_gb = int(params_b * 4 + 2)
+
+    # Adjust for batch size (each +1 batch adds ~10% memory)
+    gpu_memory_gb = int(gpu_memory_gb * (1 + (batch_size - 1) * 0.1))
+
+    # Determine GPU count and type needed
+    if gpu_memory_gb <= 8:
+        gpu_count = 1
+        gpu_type = "8GB (RTX 3070/4070)"
+    elif gpu_memory_gb <= 16:
+        gpu_count = 1
+        gpu_type = "16GB (T4/RTX 4080)"
+    elif gpu_memory_gb <= 24:
+        gpu_count = 1
+        gpu_type = "24GB (A10/RTX 3090)"
+    elif gpu_memory_gb <= 40:
+        gpu_count = 1
+        gpu_type = "40GB (A100-40GB)"
+    elif gpu_memory_gb <= 80:
+        gpu_count = 1
+        gpu_type = "80GB (A100-80GB/H100)"
+    else:
+        gpu_count = max(2, (gpu_memory_gb + 79) // 80)
+        gpu_type = f"{gpu_count}x 80GB GPUs"
+
+    # System memory (CPU RAM) - roughly 2x GPU memory for data loading
+    system_memory = max(16, gpu_memory_gb * 2)
+
+    return {
+        "gpu_count": gpu_count,
+        "gpu_memory_gb": gpu_memory_gb,
+        "gpu_type": gpu_type,
+        "system_memory_gi": system_memory,
+        "params_billions": round(params_b, 2),
+    }
 
 
 def get_cluster_resources() -> dict[str, Any]:
@@ -83,55 +148,62 @@ def estimate_resources(
 ) -> dict[str, Any]:
     """Estimates resource requirements for training a model.
 
-    Returns recommended GPU, memory, and worker configuration based on
-    model size and training parameters. Call before fine_tune() to plan.
+    Fetches model info from HuggingFace Hub to calculate accurate estimates
+    based on actual parameter count.
 
     Args:
-        model: Model name or HuggingFace path (e.g., "meta-llama/Llama-3.2-1B").
+        model: HuggingFace model path (e.g., "meta-llama/Llama-3.2-1B").
         num_workers: Number of parallel training workers (1-8, default 1).
         batch_size: Per-device batch size (1-32, default 4).
 
     Returns:
-        JSON with {gpu_per_worker, memory_per_worker, total_gpu, recommendation}
+        JSON with {gpu_per_worker, memory_per_worker, total_gpu, params_billions}
 
     Note:
-        Estimates are approximations. Actual requirements vary with dataset size.
+        Estimates assume LoRA fine-tuning with bf16. Full fine-tuning needs 4-6x more.
     """
     try:
-        model_key = None
-        model_lower = model.lower()
-        for key in MODEL_RESOURCE_ESTIMATES:
-            if key in model_lower:
-                model_key = key
-                break
+        # Fetch model info from HuggingFace
+        hf_info = _get_model_info_from_hf(model)
 
-        if model_key:
-            base = MODEL_RESOURCE_ESTIMATES[model_key]
-            gpu_per_worker = base["gpu"]
-            memory = base["memory"]
-            gpu_memory = base["gpu_memory"]
-        else:
-            gpu_per_worker = 1
-            memory = "16Gi"
-            gpu_memory = "16GB"
+        if not hf_info or "error" in hf_info:
+            error_msg = hf_info.get("error", "Unknown error") if hf_info else "API failed"
+            return ToolError(
+                error=f"Could not fetch model info from HuggingFace: {error_msg}",
+                error_code=ErrorCode.SDK_ERROR,
+                details={"hint": "Ensure model path is correct (e.g., 'meta-llama/Llama-3.2-1B')"},
+            ).model_dump()
 
-        batch_multiplier = max(1, batch_size // 4)
-        adjusted_memory = memory.replace("Gi", "")
-        adjusted_memory = f"{int(adjusted_memory) * batch_multiplier}Gi"
+        params = hf_info.get("params")
+        if not params:
+            return ToolError(
+                error="Model found but parameter count not available in HuggingFace metadata",
+                error_code=ErrorCode.SDK_ERROR,
+                details={
+                    "model_id": hf_info.get("model_id"),
+                    "hint": "Try a different model or check HuggingFace model card",
+                },
+            ).model_dump()
 
+        # Calculate estimates from parameter count
+        estimates = _estimate_from_params(params, batch_size)
+
+        gpu_per_worker = estimates["gpu_count"]
         total_gpu = gpu_per_worker * num_workers
 
         return ToolResponse(
             data={
                 "model": model,
+                "params_billions": estimates["params_billions"],
                 "gpu_per_worker": gpu_per_worker,
-                "memory_per_worker": adjusted_memory,
-                "gpu_memory_per_worker": gpu_memory,
+                "gpu_memory_required": f"{estimates['gpu_memory_gb']}GB",
+                "gpu_type_recommended": estimates["gpu_type"],
+                "memory_per_worker": f"{estimates['system_memory_gi']}Gi",
                 "total_gpu": total_gpu,
                 "num_workers": num_workers,
                 "batch_size": batch_size,
-                "recommendation": f"Request {total_gpu} GPUs across {num_workers} workers",
-                "known_model": model_key is not None,
+                "training_type": "LoRA (bf16)",
+                "recommendation": f"Request {total_gpu} GPU(s) - {estimates['gpu_type']}",
             }
         ).model_dump()
 

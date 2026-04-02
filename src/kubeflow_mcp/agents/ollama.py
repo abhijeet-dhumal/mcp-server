@@ -287,15 +287,12 @@ def _check_ollama_model(model: str, url: str) -> tuple[bool, str]:
 
 def run_chat(model: str = DEFAULT_MODEL, url: str = DEFAULT_URL):
     """Run interactive chat loop with rich UI."""
-    import kubeflow_mcp
-
     # Welcome panel
     welcome = Table.grid(padding=(0, 1))
     welcome.add_column(justify="left")
     welcome.add_row(Text("Kubeflow Training Assistant", style="bold bright_cyan"))
     welcome.add_row(Text(f"Model: {model}", style="bright_green"))
     welcome.add_row(Text(f"Ollama: {url}", style="bright_white"))
-    welcome.add_row(Text(f"Version: {kubeflow_mcp.__version__}", style="white"))
     welcome.add_row()
     welcome.add_row(Text("Commands:", style="bright_yellow"))
     welcome.add_row(Text("  /tools  - List available tools", style="white"))
@@ -427,15 +424,21 @@ def run_chat(model: str = DEFAULT_MODEL, url: str = DEFAULT_URL):
                     console.print()  # Newline after thinking
                     thinking_buffer.clear()
                 console.print()
-                args_str = json.dumps(tool_info["args"]) if tool_info["args"] else ""
-                if args_str and len(args_str) < 60:
-                    console.print(
-                        f"  [bright_yellow]🔧 {tool_info['name']}[/bright_yellow] [white]{args_str}[/white]"
-                    )
+
+                tool_name = tool_info.get("name", "unknown")
+                tool_args = tool_info.get("args") or {}
+
+                # Always show tool name
+                console.print(f"  [bright_yellow]🔧 {tool_name}[/bright_yellow]")
+
+                # Show arguments
+                if tool_args:
+                    args_str = json.dumps(tool_args, indent=2, default=str)
+                    for line in args_str.split("\n"):
+                        console.print(f"     [bright_white]{line}[/bright_white]")
                 else:
-                    console.print(f"  [bright_yellow]🔧 {tool_info['name']}[/bright_yellow]")
-                    if tool_info["args"]:
-                        console.print(f"  [white]{json.dumps(tool_info['args'], indent=2)}[/white]")
+                    console.print("     [dim](no arguments)[/dim]")
+
                 console.print("[bright_cyan]  ⏳ Executing...[/bright_cyan]", end="\r")
 
             def on_tool_result(result_info):

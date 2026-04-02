@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-trainer = ["kubeflow-training>=1.8.0"]
+trainer = ["kubeflow>=0.4.0", "huggingface_hub>=0.20"]
 optimizer = ["kubeflow-katib>=0.17.0"]
 hub = ["model-registry>=0.2.0"]
 all = [
