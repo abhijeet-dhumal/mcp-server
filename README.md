@@ -1,6 +1,7 @@
 # Kubeflow MCP Server
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Kubeflow SDK](https://img.shields.io/badge/Kubeflow_SDK-≥0.4.0-orange.svg)](https://pypi.org/project/kubeflow/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io/)
 
@@ -23,6 +24,16 @@ describe what you want to train and let AI handle the complexity.
 - **Real-time Monitoring**: Stream logs, track progress, and debug failures conversationally
 - **Safe by Design**: Preview configurations before submission, built-in validation and guardrails
 - **Multi-Client Support**: Works with Claude Desktop, Cursor IDE, MCP Inspector, or custom Ollama agents
+
+### SDK Compatibility
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| **Kubeflow SDK** | ≥0.4.0 | TrainerClient API for training jobs |
+| **Kubernetes** | ≥1.28 | With TrainJob CRD installed |
+| **Python** | ≥3.10 | Async support required |
+
+This MCP server wraps the [Kubeflow Training SDK](https://pypi.org/project/kubeflow/) `TrainerClient` API. All training operations (fine-tuning, custom scripts, container jobs) use SDK types like `BuiltinTrainer`, `CustomTrainer`, `TorchTuneConfig`, and `LoraConfig`.
 
 ## Quick Start
 
