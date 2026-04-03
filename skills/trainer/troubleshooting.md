@@ -1,208 +1,281 @@
-# Troubleshooting Guide
+# Troubleshooting Training Jobs
 
-Common issues and solutions for Kubeflow training jobs.
+Guide for diagnosing and resolving common training job failures.
 
 ## Diagnostic Workflow
 
+When a job fails or gets stuck:
+
 ```
-1. get_training_job(name)      → Check status
-2. get_training_events(name)   → Check K8s events  
-3. get_training_logs(name)     → Read error logs
+1. get_training_job(name) → Check status
+2. get_training_events(name) → Check K8s events
+3. get_training_logs(name) → Read container logs
 ```
+
+## Job Status Reference
+
+| Status | Meaning | Action |
+|--------|---------|--------|
+| `Pending` | Waiting for resources | Check events for scheduling issues |
+| `Running` | Training in progress | Check logs for errors |
+| `Succeeded` | Completed successfully | Done |
+| `Failed` | Training crashed | Check logs for error |
+| `Suspended` | Manually paused | Use `resume_training_job()` |
 
 ## Common Issues
 
-### Job Stuck in Pending
+### No GPUs Available
 
-**Symptoms:** Job status is "Pending" for extended time.
+**Symptom**: Job stuck in `Pending`
 
-**Diagnosis:**
+**Diagnosis**:
 ```python
-get_training_events(name="my-job")
-```
-
-**Common causes:**
-
-| Event Reason | Cause | Solution |
-|--------------|-------|----------|
-| `Unschedulable` | No nodes with required resources | Reduce GPU/memory or wait |
-| `FailedScheduling` | Node selector doesn't match | Check node labels |
-| `InsufficientGPU` | Not enough GPUs | Use fewer workers |
-
-**Solution:**
-```python
-# Check available resources
 get_cluster_resources()
-
-# Reduce requirements
-fine_tune(..., gpu_per_worker=1, num_workers=1)
+# Returns: {gpu_total: 0, ...}
 ```
 
-### OOMKilled (Out of Memory)
+**Solutions**:
+1. Wait for GPU nodes to become available
+2. Request GPU nodes from cluster admin
+3. Use smaller model that fits on available resources
+4. Try CPU training: `gpu_per_node=0`
 
-**Symptoms:** Pod killed with OOMKilled status.
+### Insufficient GPU Memory (OOMKilled)
 
-**Diagnosis:**
+**Symptom**: Job fails with `OOMKilled` in events
+
+**Diagnosis**:
 ```python
 get_training_events(name="my-job")
-# Look for: "OOMKilled" or "Evicted"
+# Shows: {reason: "OOMKilled", message: "Container killed due to OOM"}
 ```
 
-**Solutions:**
+**Solutions**:
 
-1. **Reduce batch size:**
-```python
-fine_tune(..., batch_size=2)  # Instead of 4
-```
+1. **Reduce batch size**:
+   ```python
+   fine_tune(..., batch_size=2, ...)  # Instead of 4
+   ```
 
-2. **Enable LoRA:**
-```python
-fine_tune(..., lora=True)  # Much less memory
-```
+2. **Use gradient accumulation** (custom training):
+   ```python
+   # Effective batch = batch_size * accumulation_steps
+   accumulation_steps = 4
+   ```
 
-3. **Use gradient checkpointing:** (in custom scripts)
-```python
-model.gradient_checkpointing_enable()
-```
+3. **Enable gradient checkpointing** (custom training):
+   ```python
+   model.gradient_checkpointing_enable()
+   ```
 
-### Image Pull Errors
+4. **Use quantization** (QLoRA):
+   Currently requires custom training with bitsandbytes
 
-**Symptoms:** ImagePullBackOff or ErrImagePull.
+### Image Pull Failed
 
-**Diagnosis:**
+**Symptom**: `ErrImagePull` or `ImagePullBackOff` in events
+
+**Diagnosis**:
 ```python
 get_training_events(name="my-job")
-# Look for: "Failed to pull image"
+# Shows: {reason: "Failed", message: "Failed to pull image..."}
 ```
 
-**Solutions:**
+**Solutions**:
 
-1. **Check image name:**
+1. **Check image name**:
+   ```python
+   # Correct
+   run_container_training(image="pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime")
+   
+   # Wrong - typo
+   run_container_training(image="pytoch/pytorch:2.2.0")
+   ```
+
+2. **Private registry**: Ensure imagePullSecrets configured in namespace
+
+3. **Rate limiting**: Docker Hub has pull limits; use authenticated pulls
+
+### Runtime Not Found
+
+**Symptom**: Error "runtime 'torch-tune' not found"
+
+**Diagnosis**:
 ```python
-# Correct format
-run_container_training(image="docker.io/library/pytorch:2.0")
+list_runtimes()
+# Returns: {runtimes: [{name: "torch-distributed"}, ...]}
 ```
 
-2. **Private registry:** Ensure imagePullSecrets are configured.
+**Solutions**:
 
-3. **Image doesn't exist:** Verify image is pushed to registry.
+1. **Use available runtime**:
+   ```python
+   fine_tune(..., runtime="torch-distributed", ...)
+   ```
 
-### CUDA Out of Memory
+2. **Install missing runtime**: Ask cluster admin to install ClusterTrainingRuntime
 
-**Symptoms:** RuntimeError: CUDA out of memory.
+### NCCL Timeout (Multi-Node)
 
-**Diagnosis:**
-```python
-get_training_logs(name="my-job")
-# Look for: "CUDA out of memory"
-```
+**Symptom**: Job hangs, then fails with NCCL timeout
 
-**Solutions:**
-
-1. **Reduce batch size**
-2. **Use mixed precision** (FP16/BF16)
-3. **Enable gradient checkpointing**
-4. **Use more GPUs with smaller batches**
-
-### NCCL Timeout
-
-**Symptoms:** NCCL timeout or connection refused.
-
-**Diagnosis:**
-```python
-get_training_logs(name="my-job")
-# Look for: "NCCL timeout" or "connection refused"
-```
-
-**Solutions:**
-
-1. **Network policy:** Ensure pods can communicate
-2. **Reduce workers:** Try single-node first
-3. **Increase timeout:** Set `NCCL_TIMEOUT` env var
-
-### HuggingFace Authentication
-
-**Symptoms:** 401 Unauthorized for gated models.
-
-**Diagnosis:**
+**Diagnosis**:
 ```python
 get_training_logs(name="my-job")
-# Look for: "401" or "authentication"
+# Shows: "NCCL WARN Timeout waiting for connection"
 ```
 
-**Solutions:**
+**Solutions**:
 
-1. **Set HF_TOKEN:**
-```bash
-export HF_TOKEN=hf_xxx
-```
+1. **Check network**: Nodes must communicate on NCCL ports
+2. **Increase timeout** (env variable):
+   ```python
+   fine_tune(..., env=[{"name": "NCCL_TIMEOUT", "value": "1800"}], ...)
+   ```
+3. **Use single node**: If network issues persist
 
-2. **Accept model license:** Visit model page on HuggingFace
+### Permission Denied (Gated Models)
 
-### Job Failed Immediately
+**Symptom**: "401 Unauthorized" or "Access denied" in logs
 
-**Symptoms:** Job goes to "Failed" within seconds.
-
-**Diagnosis:**
+**Diagnosis**:
 ```python
-get_training_logs(name="my-job", tail_lines=200)
+get_training_logs(name="my-job")
+# Shows: "You need to agree to the terms..."
 ```
 
-**Common causes:**
+**Solutions**:
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `ModuleNotFoundError` | Missing package | Add to `packages` list |
-| `SyntaxError` | Script error | Fix Python syntax |
-| `FileNotFoundError` | Missing file | Check paths |
+1. **Accept model license** on HuggingFace
+2. **Provide HF token**:
+   ```python
+   fine_tune(..., hf_token="hf_xxxxx", ...)
+   ```
+3. **Check token permissions**: Token needs `read` scope
+
+### Script Validation Failed
+
+**Symptom**: Error "Script validation failed: Dangerous pattern"
+
+**Cause**: Security check blocked dangerous imports
+
+**Solutions**:
+
+1. **Remove dangerous imports**:
+   ```python
+   # Not allowed
+   import os
+   import subprocess
+   
+   # Use alternatives
+   from pathlib import Path  # Instead of os.path
+   ```
+
+2. **Use container training** for full system access:
+   ```python
+   run_container_training(image="your-image", ...)
+   ```
+
+### Pod Stuck in ContainerCreating
+
+**Symptom**: Job stuck, events show "ContainerCreating"
+
+**Diagnosis**:
+```python
+get_training_events(name="my-job")
+# Shows: {reason: "FailedMount", message: "Unable to mount volumes..."}
+```
+
+**Solutions**:
+
+1. **PVC not found**: Check PVC exists in namespace
+2. **PVC bound**: Ensure PVC is not bound to another pod
+3. **Storage class**: Check storage class supports ReadWriteMany if multi-node
+
+### Training Loss Not Decreasing
+
+**Symptom**: Job runs but loss stays constant
+
+**Diagnosis**:
+```python
+get_training_logs(name="my-job")
+# Shows: "Epoch 1: loss=2.5, Epoch 2: loss=2.5, Epoch 3: loss=2.5"
+```
+
+**Solutions**:
+
+1. **Learning rate too low**: Increase LR
+2. **Learning rate too high**: Decrease LR (loss might be NaN)
+3. **Data issue**: Check dataset format
+4. **Frozen weights**: Ensure LoRA is actually training
 
 ## Recovery Actions
 
-### Retry Failed Job
+### Delete and Retry
 
 ```python
-# Delete failed job
 delete_training_job(name="failed-job")
 
-# Resubmit with fixes
+# Fix the issue, then resubmit
 fine_tune(..., confirmed=True)
 ```
 
 ### Suspend and Resume
 
-```python
-# Pause to free resources
-suspend_training_job(name="my-job")
+For temporary resource issues (uses direct K8s API, not SDK):
 
-# Resume later
+```python
+suspend_training_job(name="my-job")
+# Wait for resources...
 resume_training_job(name="my-job")
 ```
 
-### Clean Up
+Note: These tools patch the TrainJob CRD directly via Kubernetes API since the SDK doesn't expose suspend/resume methods.
+
+### Check Multiple Steps
+
+Training jobs have multiple containers (init, trainer):
 
 ```python
-# List all jobs
-list_training_jobs()
-
-# Delete completed/failed
-delete_training_job(name="old-job")
+# Check different steps
+get_training_logs(name="my-job", step="node-0")
+get_training_logs(name="my-job", step="model-initializer")
+get_training_logs(name="my-job", step="dataset-initializer")
 ```
+
+## Event Reference
+
+| Event Reason | Meaning |
+|--------------|---------|
+| `Scheduled` | Pod assigned to node |
+| `Pulling` | Pulling container image |
+| `Pulled` | Image pulled successfully |
+| `Created` | Container created |
+| `Started` | Container started |
+| `Killing` | Container being terminated |
+| `FailedScheduling` | No suitable node found |
+| `FailedMount` | Volume mount failed |
+| `OOMKilled` | Out of memory |
+| `BackOff` | Container crash loop |
 
 ## Getting Help
 
 If issues persist:
 
-1. **Collect diagnostics:**
-```python
-get_training_job(name="my-job")
-get_training_events(name="my-job")
-get_training_logs(name="my-job", tail_lines=500)
-```
+1. **Collect diagnostics**:
+   ```python
+   get_training_job(name="my-job")
+   get_training_events(name="my-job")
+   get_training_logs(name="my-job")
+   ```
 
-2. **Check cluster:**
-```python
-get_cluster_resources()
-list_runtimes()
-```
+2. **Check cluster status**:
+   ```python
+   get_cluster_resources()
+   list_runtimes()
+   ```
 
-3. **Report issue** with collected information.
+3. **Report issue** with:
+   - Job configuration (from preview)
+   - Events and logs
+   - Cluster resource status
