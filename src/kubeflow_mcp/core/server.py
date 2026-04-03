@@ -22,6 +22,46 @@ CLIENT_MODULES = {
     "hub": "kubeflow_mcp.hub",
 }
 
+SERVER_INSTRUCTIONS = """
+Kubeflow MCP Server - AI Model Training on Kubernetes
+
+CRITICAL WORKFLOW - Follow these steps IN ORDER:
+
+1. PLANNING (always do first):
+   - get_cluster_resources() → Check GPU availability
+   - estimate_resources(model) → Check memory requirements
+   - If gpu_total=0 or insufficient memory, STOP and inform user
+
+2. DISCOVERY (if needed):
+   - list_runtimes() → Find available training runtimes
+   - list_training_jobs() → See existing jobs
+
+3. TRAINING (requires user confirmation):
+   - fine_tune(..., confirmed=False) → Preview config first
+   - Show preview to user, ask for confirmation
+   - fine_tune(..., confirmed=True) → Submit job only after approval
+
+4. MONITORING:
+   - get_training_job(job_id) → Check status
+   - get_training_logs(job_id) → View output/errors
+   - get_training_events(job_id) → Debug scheduling issues
+
+TOOL SELECTION:
+- HuggingFace model fine-tuning → fine_tune()
+- Custom Python training script → run_custom_training()
+- Pre-built container image → run_container_training()
+
+IMPORTANT:
+- NEVER skip planning steps before training
+- ALWAYS preview before submitting (confirmed=False first)
+- Training jobs consume GPU resources - be conservative
+- Use get_training_events() to debug stuck/failed jobs
+
+For detailed guides, read the skill resources:
+- trainer://skills/fine-tuning → Fine-tuning workflow
+- trainer://skills/troubleshooting → Error recovery
+"""
+
 
 def create_server(
     clients: list[str] | None = None,
@@ -37,7 +77,7 @@ def create_server(
     Returns:
         Configured FastMCP server instance
     """
-    mcp: FastMCP = FastMCP("kubeflow-mcp")
+    mcp: FastMCP = FastMCP("kubeflow-mcp", instructions=SERVER_INSTRUCTIONS)
     allowed_tools = get_allowed_tools(persona)
 
     if clients is None:
