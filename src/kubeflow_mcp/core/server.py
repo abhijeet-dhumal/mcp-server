@@ -24,9 +24,11 @@ import logging
 
 from fastmcp import FastMCP
 
+from kubeflow_mcp.common.constants import PROMPT_METADATA, RESOURCE_METADATA
 from kubeflow_mcp.core.health import HealthManager
 from kubeflow_mcp.core.policy import apply_policy_filters, get_allowed_tools
 from kubeflow_mcp.core.prompts import register_prompts
+from kubeflow_mcp.core.resources import register_resources
 
 logger = logging.getLogger(__name__)
 
@@ -38,14 +40,16 @@ CLIENT_MODULES = {
 
 # Tool annotations for MCP clients
 # See: https://spec.modelcontextprotocol.io/specification/2025-03-26/server/tools/#annotations
+# Tags enable phase-based tool discovery (planning, discovery, training, monitoring, lifecycle)
 TOOL_ANNOTATIONS: dict[str, dict] = {
-    # Read-only tools (no side effects, safe to call repeatedly)
+    # Phase 1: Planning tools (call FIRST before any training)
     "get_cluster_resources": {
         "title": "Get Cluster Resources",
         "readOnlyHint": True,
         "destructiveHint": False,
         "idempotentHint": True,
         "openWorldHint": True,
+        "tags": ["planning", "cluster", "gpu"],
     },
     "estimate_resources": {
         "title": "Estimate Training Resources",
@@ -53,13 +57,16 @@ TOOL_ANNOTATIONS: dict[str, dict] = {
         "destructiveHint": False,
         "idempotentHint": True,
         "openWorldHint": True,
+        "tags": ["planning", "resources", "estimation"],
     },
+    # Phase 2: Discovery tools (explore available resources)
     "list_training_jobs": {
         "title": "List Training Jobs",
         "readOnlyHint": True,
         "destructiveHint": False,
         "idempotentHint": True,
         "openWorldHint": True,
+        "tags": ["discovery", "jobs"],
     },
     "get_training_job": {
         "title": "Get Training Job Details",
@@ -67,6 +74,7 @@ TOOL_ANNOTATIONS: dict[str, dict] = {
         "destructiveHint": False,
         "idempotentHint": True,
         "openWorldHint": True,
+        "tags": ["discovery", "monitoring", "jobs"],
     },
     "list_runtimes": {
         "title": "List Training Runtimes",
@@ -74,6 +82,7 @@ TOOL_ANNOTATIONS: dict[str, dict] = {
         "destructiveHint": False,
         "idempotentHint": True,
         "openWorldHint": True,
+        "tags": ["discovery", "runtimes"],
     },
     "get_runtime": {
         "title": "Get Runtime Details",
@@ -81,6 +90,7 @@ TOOL_ANNOTATIONS: dict[str, dict] = {
         "destructiveHint": False,
         "idempotentHint": True,
         "openWorldHint": True,
+        "tags": ["discovery", "runtimes"],
     },
     "get_runtime_packages": {
         "title": "Get Runtime Packages",
@@ -88,35 +98,16 @@ TOOL_ANNOTATIONS: dict[str, dict] = {
         "destructiveHint": False,
         "idempotentHint": True,
         "openWorldHint": True,
+        "tags": ["discovery", "runtimes"],
     },
-    "get_training_logs": {
-        "title": "Get Training Logs",
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True,
-        "openWorldHint": True,
-    },
-    "get_training_events": {
-        "title": "Get Training Events",
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True,
-        "openWorldHint": True,
-    },
-    "wait_for_training": {
-        "title": "Wait for Training Completion",
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True,
-        "openWorldHint": True,
-    },
-    # Training tools (create resources, not destructive)
+    # Phase 3: Training tools (create resources, require confirmation)
     "fine_tune": {
         "title": "Fine-tune Model",
         "readOnlyHint": False,
         "destructiveHint": False,
         "idempotentHint": False,
         "openWorldHint": True,
+        "tags": ["training", "fine-tuning", "llm"],
     },
     "run_custom_training": {
         "title": "Run Custom Training Script",
@@ -124,6 +115,7 @@ TOOL_ANNOTATIONS: dict[str, dict] = {
         "destructiveHint": False,
         "idempotentHint": False,
         "openWorldHint": True,
+        "tags": ["training", "custom", "script"],
     },
     "run_container_training": {
         "title": "Run Container Training",
@@ -131,14 +123,41 @@ TOOL_ANNOTATIONS: dict[str, dict] = {
         "destructiveHint": False,
         "idempotentHint": False,
         "openWorldHint": True,
+        "tags": ["training", "container"],
     },
-    # Lifecycle tools
+    # Phase 4: Monitoring tools (track progress and debug)
+    "get_training_logs": {
+        "title": "Get Training Logs",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+        "tags": ["monitoring", "logs", "debug"],
+    },
+    "get_training_events": {
+        "title": "Get Training Events",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+        "tags": ["monitoring", "events", "debug"],
+    },
+    "wait_for_training": {
+        "title": "Wait for Training Completion",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+        "tags": ["monitoring", "blocking"],
+    },
+    # Lifecycle tools (manage job state)
     "delete_training_job": {
         "title": "Delete Training Job",
         "readOnlyHint": False,
         "destructiveHint": True,
         "idempotentHint": True,
         "openWorldHint": True,
+        "tags": ["lifecycle", "cleanup"],
     },
     "suspend_training_job": {
         "title": "Suspend Training Job",
@@ -146,6 +165,7 @@ TOOL_ANNOTATIONS: dict[str, dict] = {
         "destructiveHint": False,
         "idempotentHint": True,
         "openWorldHint": True,
+        "tags": ["lifecycle", "pause"],
     },
     "resume_training_job": {
         "title": "Resume Training Job",
@@ -153,11 +173,16 @@ TOOL_ANNOTATIONS: dict[str, dict] = {
         "destructiveHint": False,
         "idempotentHint": True,
         "openWorldHint": True,
+        "tags": ["lifecycle", "resume"],
     },
 }
 
-SERVER_INSTRUCTIONS = """
-Kubeflow MCP Server - AI Model Training on Kubernetes
+def _build_server_instructions() -> str:
+    """Build server instructions dynamically from metadata."""
+    prompts_section = "\n".join(f"- {name} → {desc}" for name, desc in PROMPT_METADATA.items())
+    resources_section = "\n".join(f"- {uri} → {desc}" for uri, desc in RESOURCE_METADATA.items())
+
+    return f"""Kubeflow MCP Server - AI Model Training on Kubernetes
 
 CRITICAL WORKFLOW - Follow these steps IN ORDER:
 
@@ -192,12 +217,14 @@ IMPORTANT:
 - Use get_training_events() to debug stuck/failed jobs
 
 PROMPTS (use for detailed guidance):
-- fine_tuning_workflow → Step-by-step fine-tuning guide
-- custom_training_workflow → Custom script/container guide
-- troubleshooting_guide → Diagnose and fix failures
-- resource_planning → Plan resources before training
-- monitoring_workflow → Monitor jobs and debug issues
+{prompts_section}
+
+RESOURCES (read-only reference data):
+{resources_section}
 """
+
+
+SERVER_INSTRUCTIONS = _build_server_instructions()
 
 
 def create_server(
@@ -284,6 +311,9 @@ def create_server(
 
     # Register MCP prompts for structured workflows
     register_prompts(mcp)
+
+    # Register MCP resources for read-only reference data
+    register_resources(mcp)
 
     health = HealthManager(mcp)
     health.register_health_tools()

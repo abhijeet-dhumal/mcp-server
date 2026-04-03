@@ -1,6 +1,6 @@
 {
-  "commit": "bba08b4",
-  "timestamp": "2026-04-04T01:17:53.415055",
+  "commit": "209759f",
+  "timestamp": "2026-04-04T03:48:47.316483",
   "python_version": "3.12.11",
   "environment": {
     "python": "3.12.11",
@@ -15,7 +15,7 @@
       "get_cluster_resources": 24,
       "estimate_resources": 48,
       "fine_tune": 177,
-      "run_custom_training": 68,
+      "run_custom_training": 136,
       "run_container_training": 128,
       "list_training_jobs": 38,
       "get_training_job": 27,
@@ -30,38 +30,50 @@
       "resume_training_job": 31
     },
     "modes": {
-      "static": 838,
+      "full": 906,
       "progressive": 85,
       "semantic": 69
     },
-    "server_instructions": 317,
+    "server_instructions": 404,
     "categories": {
       "core": 319,
       "planning": 72,
-      "training": 373,
+      "training": 441,
       "discovery": 157,
       "monitoring": 139,
       "lifecycle": 97
-    }
+    },
+    "note": "Static and MCP modes have identical token usage (same tools, different loading mechanism)"
   },
   "latency": {
     "server_creation_ms": {
-      "mean": 4.251484199976403,
-      "std": 0.15448177584069225,
-      "min": 4.0300000000570435,
-      "max": 4.7363749999931315,
-      "p50": 4.203582999252831,
-      "p95": 4.612167000232148,
-      "p99": 4.7363749999931315,
-      "ci95": 0.042820163616543915,
+      "mean": 7.080013399972813,
+      "std": 3.2846639559941684,
+      "min": 5.355749999580439,
+      "max": 22.377749999577645,
+      "p50": 5.964209000012488,
+      "p95": 13.292125000589294,
+      "p99": 22.377749999577645,
+      "ci95": 0.9104623976233831,
+      "iterations": 50
+    },
+    "mcp_list_tools_ms": {
+      "mean": 0.37251998015563004,
+      "std": 0.1604003728828274,
+      "min": 0.23337499987974297,
+      "max": 0.8427909997408278,
+      "p50": 0.3020409985765582,
+      "p95": 0.7272920011018869,
+      "p99": 0.8427909997408278,
+      "ci95": 0.044460715017156836,
       "iterations": 50
     }
   },
   "memory": {
     "server_kb": {
-      "current_mean": 184.202734375,
-      "peak_mean": 202.0216796875,
-      "peak_std": 8.810928675387869,
+      "current_mean": 214.7326171875,
+      "peak_mean": 230.5181640625,
+      "peak_std": 12.721977585426018,
       "samples": 5
     }
   }

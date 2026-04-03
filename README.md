@@ -180,6 +180,7 @@ MCP prompts provide structured guidance for common workflows. MCP clients can di
 | `custom_training_workflow` | Guide for custom scripts or container training |
 | `troubleshooting_guide` | Diagnose and fix common job failures |
 | `resource_planning` | Plan resources before training |
+| `monitoring_workflow` | Monitor jobs and debug issues |
 
 <details>
 <summary><b>Using prompts in MCP clients</b></summary>
@@ -192,6 +193,17 @@ Example with parameters:
 fine_tuning_workflow(model="meta-llama/Llama-3.2-3B", dataset="tatsu-lab/alpaca")
 ```
 </details>
+
+## Resources
+
+MCP resources provide read-only reference data that clients can fetch without consuming tool calls:
+
+| Resource URI | Content |
+|--------------|---------|
+| `trainer://models/supported` | Tested model configurations with GPU requirements |
+| `trainer://runtimes/info` | Runtime documentation and patches |
+| `trainer://guides/quickstart` | Quick start guide for new users |
+| `trainer://guides/troubleshooting` | Troubleshooting quick reference |
 
 ## CLI
 
@@ -225,19 +237,17 @@ kubeflow-mcp agent --backend ollama --model qwen3:8b
 
 | Mode | Description |
 |------|-------------|
-| `mcp` | Standard MCP stdio protocol (recommended) |
-| `static` | Direct Python import (fallback) |
+| `full` | All tools via MCP protocol (default) |
 | `progressive` | 3 meta-tools for hierarchical discovery |
-| `semantic` | Embedding-based search |
+| `semantic` | 2 meta-tools with embedding-based search |
 
 ```bash
-kubeflow-mcp agent --backend ollama --mode mcp         # Standard MCP protocol (recommended)
-kubeflow-mcp agent --backend ollama --mode static      # Direct import fallback
-kubeflow-mcp agent --backend ollama --mode progressive
+kubeflow-mcp agent --backend ollama                    # Full mode (default)
+kubeflow-mcp agent --backend ollama --mode progressive # Hierarchical discovery
 kubeflow-mcp agent --backend ollama --mode semantic    # requires sentence-transformers
 ```
 
-**MCP mode** connects via the same stdio protocol as Cursor and Claude Desktop, ensuring identical behavior and access to all MCP features (tools, prompts, server instructions).
+**Full mode** connects via the standard MCP stdio protocol, identical to Cursor and Claude Desktop.
 </details>
 
 <details>

@@ -82,8 +82,8 @@ def schema_to_json(schema: dict) -> str:
 class TestTokenUsageByMode:
     """Test token usage for different tool loading modes."""
 
-    def test_static_mode_all_tools(self):
-        """Measure tokens for static mode (all 16 tools)."""
+    def test_full_mode_all_tools(self):
+        """Measure tokens for full mode (all tools)."""
         tools = TOOLS
         total_tokens = 0
         tool_tokens = {}
@@ -96,14 +96,17 @@ class TestTokenUsageByMode:
             total_tokens += tokens
 
         print(f"\n{'=' * 60}")
-        print(f"STATIC MODE: {len(tools)} tools, {total_tokens} tokens")
+        print(f"FULL MODE: {len(tools)} tools, {total_tokens} tokens")
         print(f"{'=' * 60}")
         for name, tokens in sorted(tool_tokens.items(), key=lambda x: -x[1]):
             print(f"  {name}: {tokens} tokens")
 
-        # Assertions - track regressions
-        assert len(tools) == 16, f"Expected 16 tools, got {len(tools)}"
-        assert total_tokens < 3000, f"Token budget exceeded: {total_tokens} > 3000"
+        # Assertions - track regressions (tool count should match TOOL_PHASES)
+        from kubeflow_mcp.common.constants import TOOL_PHASES
+
+        expected_tools = sum(len(t) for t in TOOL_PHASES.values())
+        assert len(tools) == expected_tools, f"Expected {expected_tools} tools, got {len(tools)}"
+        assert total_tokens < 1500, f"Token budget exceeded: {total_tokens} > 1500"
 
     def test_core_mode_essential_tools(self):
         """Measure tokens for core mode (5 essential tools)."""

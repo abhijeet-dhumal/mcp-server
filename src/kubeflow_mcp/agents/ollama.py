@@ -74,13 +74,26 @@ console = Console()
 DEFAULT_MODEL = "qwen2.5:7b"
 DEFAULT_URL = "http://localhost:11434"
 
-# Tool modes for different token budgets
+# Import tool registries for dynamic counts
+from kubeflow_mcp.agents.dynamic_tools import PROGRESSIVE_TOOLS, SEMANTIC_TOOLS  # noqa: E402
+from kubeflow_mcp.trainer import TOOLS  # noqa: E402
+
+# Tool modes - counts computed dynamically from actual registries
+_NUM_TOOLS = len(TOOLS)
+_NUM_PROGRESSIVE = len(PROGRESSIVE_TOOLS)
+_NUM_SEMANTIC = len(SEMANTIC_TOOLS)
+
+# User-facing tool modes
+# "full" uses MCP protocol (with fallback to direct import)
+# "progressive" and "semantic" reduce token usage via meta-tools
 TOOL_MODES = {
-    "static": "All 16 tools loaded (~3K tokens)",
-    "mcp": "Tools loaded via MCP protocol (standardized)",
-    "progressive": "3 meta-tools with hierarchical discovery (~500 tokens)",
-    "semantic": "2 meta-tools with embedding search (~400 tokens)",
+    "full": f"All {_NUM_TOOLS} tools via MCP protocol",
+    "progressive": f"{_NUM_PROGRESSIVE} meta-tools with hierarchical discovery",
+    "semantic": f"{_NUM_SEMANTIC} meta-tools with embedding search",
 }
+
+# Legacy aliases for backward compatibility
+_MODE_ALIASES = {"static": "full", "mcp": "full"}
 
 # Agent-specific additions to server instructions
 AGENT_HINTS = """
@@ -176,10 +189,9 @@ def create_tools(
 
     Args:
         mode: Tool loading mode:
-            - "static": All 16 tools via direct import (~3K tokens)
-            - "mcp": Tools loaded via MCP client (standardized)
-            - "progressive": 3 meta-tools for hierarchical discovery (~500 tokens)
-            - "semantic": 2 meta-tools for embedding search (~400 tokens)
+            - "full": All tools via MCP protocol (~900 tokens) - default
+            - "progressive": 3 meta-tools for hierarchical discovery (~85 tokens)
+            - "semantic": 2 meta-tools for embedding search (~69 tokens)
 
     Note: For MCP mode, use create_mcp_client() async function instead.
     """
@@ -224,10 +236,9 @@ class OllamaAgent:
     """Ollama agent using LlamaIndex FunctionAgent with thinking support.
 
     Supports multiple tool modes for different context budgets:
-        - "static": All 16 tools via direct import (~3K tokens) - best accuracy
-        - "mcp": Tools loaded via MCP protocol (standardized, recommended)
-        - "progressive": 3 meta-tools (~500 tokens) - hierarchical discovery
-        - "semantic": 2 meta-tools (~400 tokens) - embedding-based discovery
+        - "full": All tools via MCP protocol (~900 tokens) - default, best accuracy
+        - "progressive": 3 meta-tools (~85 tokens) - hierarchical discovery
+        - "semantic": 2 meta-tools (~69 tokens) - embedding-based discovery
     """
 
     _agent: FunctionAgent | None
@@ -241,11 +252,12 @@ class OllamaAgent:
         self,
         model: str = DEFAULT_MODEL,
         base_url: str = DEFAULT_URL,
-        tool_mode: str = "static",
+        tool_mode: str = "full",
     ):
         self.model = model
         self.base_url = base_url
-        self.tool_mode = tool_mode
+        # Resolve legacy aliases (static, mcp -> full)
+        self.tool_mode = _MODE_ALIASES.get(tool_mode, tool_mode)
         self._agent = None
         self._tools = None
         self._thinking_supported = None  # None = unknown, True/False = tested
@@ -293,7 +305,7 @@ class OllamaAgent:
 
         try:
             # Create tools based on mode
-            if self.tool_mode == "mcp":
+            if self.tool_mode == "full":
                 self._init_mcp_agent(with_thinking)
             else:
                 self._tools = create_tools(mode=self.tool_mode)
@@ -377,14 +389,17 @@ class OllamaAgent:
 
     def set_mode(self, mode: str) -> int:
         """Switch tool mode at runtime. Returns number of tools loaded."""
-        if mode not in TOOL_MODES:
+        # Handle legacy aliases (static, mcp -> full)
+        resolved_mode = _MODE_ALIASES.get(mode, mode)
+
+        if resolved_mode not in TOOL_MODES:
             raise ValueError(f"Unknown mode: {mode}. Choose from: {list(TOOL_MODES.keys())}")
 
-        self.tool_mode = mode
+        self.tool_mode = resolved_mode
 
         # Update system prompt based on mode
-        if mode in ("progressive", "semantic"):
-            self._system_prompt = get_dynamic_system_prompt(mode)
+        if resolved_mode in ("progressive", "semantic"):
+            self._system_prompt = get_dynamic_system_prompt(resolved_mode)
         else:
             self._system_prompt = SYSTEM_PROMPT_FULL
 
@@ -583,9 +598,9 @@ def run_chat(
         model: Ollama model name
         url: Ollama server URL
         tool_mode: Tool loading mode:
-            - "static": All 16 tools (~3K tokens)
-            - "progressive": 3 meta-tools, hierarchical discovery (~500 tokens)
-            - "semantic": 2 meta-tools, embedding search (~400 tokens)
+            - "full": All tools via MCP protocol (~900 tokens) - default
+            - "progressive": 3 meta-tools, hierarchical discovery (~85 tokens)
+            - "semantic": 2 meta-tools, embedding search (~69 tokens)
     """
     # Welcome panel
     welcome = Table.grid(padding=(0, 1))
@@ -934,12 +949,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Tool modes:
-  static      All 16 tools (~3K tokens) - best accuracy, needs 32K context
-  progressive 3 meta-tools (~500 tokens) - hierarchical discovery, 90% token reduction
-  semantic    2 meta-tools (~400 tokens) - embedding search, needs sentence-transformers
+  full        All tools via MCP protocol (~900 tokens) - default, best accuracy
+  progressive 3 meta-tools (~85 tokens) - hierarchical discovery, -91% tokens
+  semantic    2 meta-tools (~69 tokens) - embedding search, -92% tokens
 
 Examples:
-  # Default - all tools (for qwen2.5:7b with 32K context)
+  # Default - all tools via MCP protocol
   python -m kubeflow_mcp.agents.ollama
 
   # Progressive mode (minimal tokens, hierarchical discovery)
@@ -953,9 +968,9 @@ Examples:
     parser.add_argument("--url", default=DEFAULT_URL, help="Ollama server URL")
     parser.add_argument(
         "--mode",
-        choices=["static", "progressive", "semantic"],
-        default="static",
-        help="Tool loading mode (default: static)",
+        choices=["full", "progressive", "semantic", "static", "mcp"],  # static/mcp are legacy aliases
+        default="full",
+        help="Tool loading mode: full (all tools), progressive (hierarchical), semantic (embedding search)",
     )
     args = parser.parse_args()
 

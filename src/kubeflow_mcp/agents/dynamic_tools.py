@@ -19,56 +19,33 @@ Implements two approaches from https://www.speakeasy.com/blog/100x-token-reducti
 2. Semantic Search - Embeddings-based natural language discovery
 
 Usage:
-    # Progressive mode (~3K initial tokens)
+    # Progressive mode (~85 tokens, -91% reduction)
     agent = OllamaAgent(model="qwen2.5:7b", tool_mode="progressive")
 
-    # Semantic mode (~2K initial tokens, requires sentence-transformers)
+    # Semantic mode (~69 tokens, -92% reduction, requires sentence-transformers)
     agent = OllamaAgent(model="qwen2.5:7b", tool_mode="semantic")
 
-    # Static mode (all tools, ~5K tokens) - default
-    agent = OllamaAgent(model="qwen2.5:7b", tool_mode="static")
+    # Full mode (all tools via MCP, ~900 tokens) - default
+    agent = OllamaAgent(model="qwen2.5:7b", tool_mode="full")
 """
 
 from collections.abc import Callable
 from typing import Any
 
+from kubeflow_mcp.common.constants import TOOL_PHASES, TOOL_TO_PHASE
 from kubeflow_mcp.trainer import TOOLS
 
 # Build tool registry with hierarchy
 TOOL_REGISTRY: dict[str, dict[str, Any]] = {}
-TOOL_HIERARCHY: dict[str, list[str]] = {
-    "planning": [],
-    "training": [],
-    "discovery": [],
-    "monitoring": [],
-    "lifecycle": [],
-}
 
-# Categorize tools
-TOOL_CATEGORIES_MAP = {
-    "get_cluster_resources": "planning",
-    "estimate_resources": "planning",
-    "fine_tune": "training",
-    "run_custom_training": "training",
-    "run_container_training": "training",
-    "list_training_jobs": "discovery",
-    "get_training_job": "discovery",
-    "list_runtimes": "discovery",
-    "get_runtime": "discovery",
-    "get_runtime_packages": "discovery",
-    "get_training_logs": "monitoring",
-    "get_training_events": "monitoring",
-    "wait_for_training": "monitoring",
-    "delete_training_job": "lifecycle",
-    "suspend_training_job": "lifecycle",
-    "resume_training_job": "lifecycle",
-}
+# Initialize hierarchy from constants (ensures consistency)
+TOOL_HIERARCHY: dict[str, list[str]] = {phase: [] for phase in TOOL_PHASES}
 
-# Build registry
+# Build registry using centralized TOOL_TO_PHASE mapping
 for tool_func in TOOLS:
     name = tool_func.__name__
     doc = tool_func.__doc__ or ""
-    category = TOOL_CATEGORIES_MAP.get(name, "other")
+    category = TOOL_TO_PHASE.get(name, "other")
 
     TOOL_REGISTRY[name] = {
         "name": name,
@@ -77,7 +54,8 @@ for tool_func in TOOLS:
         "full_doc": doc,
         "func": tool_func,
     }
-    TOOL_HIERARCHY[category].append(name)
+    if category in TOOL_HIERARCHY:
+        TOOL_HIERARCHY[category].append(name)
 
 
 # =============================================================================

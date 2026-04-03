@@ -15,6 +15,7 @@ flowchart TB
     subgraph Server["kubeflow-mcp Server"]
         Instructions[SERVER_INSTRUCTIONS]
         Prompts[5 MCP Prompts]
+        Resources[4 MCP Resources]
         Tools[18 Tools]
         Policy[Persona Policies]
         
@@ -26,6 +27,7 @@ flowchart TB
         
         Instructions --> Tools
         Prompts --> Tools
+        Resources -.-> Prompts
         Policy --> Tools
     end
 
@@ -47,7 +49,7 @@ flowchart TB
 
 | Directory | Purpose | Key Files |
 |-----------|---------|-----------|
-| `core/` | Server infrastructure | `server.py`, `prompts.py`, `policy.py`, `config.py`, `security.py`, `resilience.py` |
+| `core/` | Server infrastructure | `server.py`, `prompts.py`, `resources.py`, `policy.py`, `config.py`, `security.py`, `resilience.py` |
 | `trainer/` | Kubeflow Training tools | `api/planning.py`, `api/training.py`, `api/discovery.py`, `api/monitoring.py`, `api/lifecycle.py` |
 | `agents/` | Local agent implementations | `ollama.py`, `dynamic_tools.py`, `mcp_client.py` |
 | `optimizer/` | Katib integration | Stub for Phase 2 |
@@ -109,6 +111,29 @@ Prompts provide detailed, parameterized guidance without bloating the system pro
 | `troubleshooting_guide` | `error_type` | Diagnose OOM, pending, image pull, NCCL errors |
 | `resource_planning` | `model` | GPU memory and batch size recommendations |
 | `monitoring_workflow` | `job_name` | Monitor progress and debug failures |
+
+### MCP Resources (Read-Only Reference Data)
+
+Resources provide cacheable, read-only data that clients can fetch without consuming tool call quota:
+
+| Resource URI | Content |
+|--------------|---------|
+| `trainer://models/supported` | Tested model configurations with GPU requirements |
+| `trainer://runtimes/info` | Runtime documentation and usage |
+| `trainer://guides/quickstart` | Quick start guide for new users |
+| `trainer://guides/troubleshooting` | Troubleshooting quick reference |
+
+### Tool Tags (Phase-Based Discovery)
+
+Tools include `tags` in their annotations for phase-based discovery:
+
+| Tag | Phase | Tools |
+|-----|-------|-------|
+| `planning` | 1 | `get_cluster_resources`, `estimate_resources` |
+| `discovery` | 2 | `list_*`, `get_runtime*` |
+| `training` | 3 | `fine_tune`, `run_custom_training`, `run_container_training` |
+| `monitoring` | 4 | `get_training_logs`, `get_training_events`, `wait_for_training` |
+| `lifecycle` | - | `delete_*`, `suspend_*`, `resume_*` |
 
 ### Fine-Tuning Workflow Sequence
 
@@ -226,10 +251,10 @@ flowchart TB
 |--------|----------|-------|--------------|---------|
 | Cursor IDE | MCP stdio | MCP protocol | `SERVER_INSTRUCTIONS` | MCP prompts API |
 | Claude Desktop | MCP stdio | MCP protocol | `SERVER_INSTRUCTIONS` | MCP prompts API |
-| Local Agent (mcp) | MCP stdio | MCP protocol | `SERVER_INSTRUCTIONS` | MCP prompts API |
-| Local Agent (static) | Direct | Python import | `SERVER_INSTRUCTIONS` | Not available |
+| Local Agent (full) | MCP stdio | MCP protocol | `SERVER_INSTRUCTIONS` | MCP prompts API |
+| Local Agent (progressive/semantic) | Direct | Meta-tools | Dynamic prompt | Not available |
 
-The `--mode mcp` (default for local agent) uses the standard MCP protocol, ensuring identical behavior across all clients.
+The default `--mode full` uses the standard MCP protocol, ensuring identical behavior across all clients.
 
 ## Token-Efficient Modes
 
@@ -237,9 +262,11 @@ To reduce LLM context usage, three tool loading modes are supported:
 
 | Mode | Initial Tokens | Reduction | Mechanism |
 |------|---------------|-----------|-----------|
-| **Static** | 838 | baseline | All 16 tools loaded at once |
-| **Progressive** | 85 | -90% | 3 meta-tools with hierarchical discovery |
-| **Semantic** | 69 | -92% | 2 meta-tools with embedding-based search |
+| **Full** | ~900 | baseline | All tools via MCP protocol |
+| **Progressive** | ~85 | -91% | 3 meta-tools with hierarchical discovery |
+| **Semantic** | ~69 | -92% | 2 meta-tools with embedding-based search |
+
+Note: `static` and `mcp` are legacy aliases for `full` mode.
 
 ## Access Control
 

@@ -1,9 +1,9 @@
 """Generate visual benchmark report with charts.
 
-Creates a comprehensive dashboard comparing all search modes:
-- Static: All 16 tools
-- Progressive: 3 meta-tools (hierarchical discovery)
-- Semantic: 2 meta-tools (embedding search)
+Creates a comprehensive dashboard comparing tool loading modes:
+- Full: All tools via MCP protocol (default)
+- Progressive: Meta-tools with hierarchical discovery
+- Semantic: Meta-tools with embedding search
 
 Run with: uv run pytest tests/benchmarks/test_report.py -v -s
 Requirements: uv sync --extra benchmark --extra trainer
@@ -13,6 +13,7 @@ Reliability features:
 - Warmup runs before measurements
 - Statistical analysis (mean, std, confidence intervals)
 - Environment metadata captured
+- Dynamic tool counts from actual registries
 """
 
 import gc
@@ -159,21 +160,36 @@ class TestBenchmarkReport:
             "tokenizer": "cl100k_base (GPT-4)",
             "tools": tool_tokens,
             "modes": {
-                "static": static_tokens,
+                "full": static_tokens,
                 "progressive": progressive_tokens,
                 "semantic": semantic_tokens,
             },
             "server_instructions": instructions_tokens,
             "categories": category_tokens,
+            "note": "Static and MCP modes have identical token usage (same tools, different loading mechanism)",
         }
 
         # === LATENCY ===
-        # Server creation is the only meaningful latency - it does real work:
-        # - Imports modules
-        # - Creates FastMCP instance
-        # - Registers all tools and resources
+        # Server creation latency (shared by static and MCP modes)
         metrics["latency"]["server_creation_ms"] = measure_latency(
             lambda: create_server(clients=["trainer"]),
+            iterations=50,
+            warmup=10,
+        )
+
+        # MCP tool listing latency (list_tools via MCP protocol)
+        server = create_server(clients=["trainer"])
+
+        async def list_tools_mcp():
+            return await server.list_tools()
+
+        import asyncio
+
+        def run_list_tools():
+            asyncio.run(list_tools_mcp())
+
+        metrics["latency"]["mcp_list_tools_ms"] = measure_latency(
+            run_list_tools,
             iterations=50,
             warmup=10,
         )
@@ -205,12 +221,17 @@ class TestBenchmarkReport:
             y=0.98,
         )
 
-        # ===== CHART 1: Search Mode Token Comparison (top-left) =====
+        # ===== CHART 1: Token Comparison by Mode (top-left) =====
         ax1 = axes[0, 0]
+        # Dynamic tool counts from actual registries
+        num_static_tools = len(TOOLS)
+        num_progressive_tools = len(PROGRESSIVE_TOOLS)
+        num_semantic_tools = len(SEMANTIC_TOOLS)
+
         mode_data = [
-            ("Static (16 tools)", static_tokens, "#e74c3c"),
-            ("Progressive (3 meta)", progressive_tokens, "#3498db"),
-            ("Semantic (2 meta)", semantic_tokens, "#2ecc71"),
+            (f"Full ({num_static_tools} tools)", static_tokens, "#e74c3c"),
+            (f"Progressive ({num_progressive_tools} meta)", progressive_tokens, "#3498db"),
+            (f"Semantic ({num_semantic_tools} meta)", semantic_tokens, "#2ecc71"),
         ]
         mode_names = [m[0] for m in mode_data]
         mode_vals = [m[1] for m in mode_data]
@@ -222,16 +243,19 @@ class TestBenchmarkReport:
         ax1.set_yticks(range(len(mode_names)))
         ax1.set_yticklabels(mode_names, fontsize=11)
         ax1.set_xlabel("Tokens (GPT-4 cl100k_base)", fontsize=10)
-        ax1.set_title("Token Usage by Search Mode", fontsize=12, fontweight="bold")
+        ax1.set_title("Token Usage by Tool Mode", fontsize=12, fontweight="bold")
         ax1.invert_yaxis()
         ax1.set_xlim(0, static_tokens * 1.35)
 
         for i, (bar, val) in enumerate(zip(bars, mode_vals, strict=True)):
-            reduction = f" (-{(1 - val / static_tokens) * 100:.0f}%)" if i > 0 else " (baseline)"
+            if i == 0:
+                label = " (baseline)"
+            else:
+                label = f" (-{(1 - val / static_tokens) * 100:.0f}%)"
             ax1.text(
                 val + 10,
                 bar.get_y() + bar.get_height() / 2,
-                f"{val}{reduction}",
+                f"{val}{label}",
                 va="center",
                 fontsize=10,
                 fontweight="bold",
@@ -282,29 +306,35 @@ class TestBenchmarkReport:
 
         mem = metrics["memory"]["server_kb"]
         env = metrics["environment"]
+        mcp_lat = metrics["latency"]["mcp_list_tools_ms"]
 
         summary = [
             ["Category", "Metric", "Value"],
-            ["Tokens", "Static (16 tools)", f"{static_tokens}"],
+            ["Tokens", f"Full ({num_static_tools} tools)", f"{static_tokens}"],
             [
                 "",
-                "Progressive (3 meta)",
+                f"Progressive ({num_progressive_tools} meta)",
                 f"{progressive_tokens} (-{(1 - progressive_tokens / static_tokens) * 100:.0f}%)",
             ],
             [
                 "",
-                "Semantic (2 meta)",
+                f"Semantic ({num_semantic_tools} meta)",
                 f"{semantic_tokens} (-{(1 - semantic_tokens / static_tokens) * 100:.0f}%)",
             ],
             [
                 "Latency",
                 "Server Init",
-                f"{server_lat['mean']:.2f} ± {server_lat['ci95']:.2f} ms (n={server_lat['iterations']})",
+                f"{server_lat['mean']:.2f} ± {server_lat['ci95']:.2f} ms",
+            ],
+            [
+                "",
+                "MCP list_tools",
+                f"{mcp_lat['mean']:.2f} ± {mcp_lat['ci95']:.2f} ms",
             ],
             [
                 "Memory",
                 "Peak",
-                f"{mem['peak_mean']:.1f} ± {mem['peak_std']:.1f} KB (n={mem['samples']})",
+                f"{mem['peak_mean']:.1f} ± {mem['peak_std']:.1f} KB",
             ],
             ["Env", "System", f"Py {env['python']} / {env['os']} {env['machine']}"],
         ]
@@ -348,16 +378,14 @@ class TestBenchmarkReport:
         print(f"Data:  {json_path}")
         print(f"\nEnvironment: Python {env['python']} on {env['os']} {env['machine']}")
         print("\nToken Usage (GPT-4 cl100k_base tokenizer):")
-        print(f"  Static:      {static_tokens:4d} tokens (baseline)")
+        print(f"  Full:        {static_tokens:4d} tokens (baseline, {num_static_tools} tools)")
         print(
-            f"  Progressive: {progressive_tokens:4d} tokens (-{(1 - progressive_tokens / static_tokens) * 100:.0f}%)"
+            f"  Progressive: {progressive_tokens:4d} tokens ({num_progressive_tools} meta, -{(1 - progressive_tokens / static_tokens) * 100:.0f}%)"
         )
         print(
-            f"  Semantic:    {semantic_tokens:4d} tokens (-{(1 - semantic_tokens / static_tokens) * 100:.0f}%)"
+            f"  Semantic:    {semantic_tokens:4d} tokens ({num_semantic_tools} meta, -{(1 - semantic_tokens / static_tokens) * 100:.0f}%)"
         )
-        print(
-            f"\nServer Init Latency: {server_lat['mean']:.2f}ms ± {server_lat['ci95']:.2f}ms (n={server_lat['iterations']})"
-        )
-        print(
-            f"Memory Peak: {mem['peak_mean']:.1f} KB ± {mem['peak_std']:.1f} KB (n={mem['samples']})"
-        )
+        print("\nLatency:")
+        print(f"  Server Init:     {server_lat['mean']:.2f}ms ± {server_lat['ci95']:.2f}ms")
+        print(f"  MCP list_tools:  {mcp_lat['mean']:.2f}ms ± {mcp_lat['ci95']:.2f}ms")
+        print(f"\nMemory Peak: {mem['peak_mean']:.1f} KB ± {mem['peak_std']:.1f} KB")
