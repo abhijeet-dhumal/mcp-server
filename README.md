@@ -246,10 +246,6 @@ kubeflow-mcp serve --clients trainer --persona ml-engineer
 # Available personas: ml-engineer, admin, viewer
 ```
 
-## Architecture
-
-![Architecture](assets/architecture.png)
-
 ## Cursor Skills
 
 Enhance AI context with training skills:
