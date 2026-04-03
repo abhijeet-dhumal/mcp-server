@@ -19,21 +19,14 @@ def get_training_logs(
     step: str = "node-0",
     follow: bool = False,
 ) -> dict[str, Any]:
-    """Gets logs from a training job.
-
-    Returns log output from a specific step/node.
-    Use for debugging training issues or monitoring progress.
+    """Get logs from a training job. Use for debugging.
 
     Args:
-        name: Name of the training job.
-        step: Step/node to get logs from (default "node-0").
-        follow: Stream logs continuously (default False).
+        name: Job name
+        step: Node to get logs from (default "node-0")
+        follow: Stream continuously (default False)
 
-    Returns:
-        JSON with {job: str, step: str, logs: str}
-
-    Note:
-        For job status, use get_training_job(). This is for raw logs only.
+    Returns: {job, step, logs, lines}
     """
     try:
         client = get_trainer_client()
@@ -68,20 +61,13 @@ def get_training_events(
     name: str,
     limit: int = 50,
 ) -> dict[str, Any]:
-    """Gets Kubernetes events for a training job.
-
-    Returns events like pod scheduling, image pulls, and failures.
-    Use to understand why a job is pending or failed.
+    """Get K8s events for a job. Use to debug pending/failed jobs.
 
     Args:
-        name: Name of the training job.
-        limit: Maximum events to return (1-100, default 50).
+        name: Job name
+        limit: Max events (default 50)
 
-    Returns:
-        JSON with {job: str, events: [{type, reason, message, timestamp}]}
-
-    Note:
-        Events are ephemeral. Old events may be garbage collected.
+    Returns: {job, events: [{type, reason, message}]}
     """
     try:
         client = get_trainer_client()
@@ -113,21 +99,14 @@ def wait_for_training(
     target_status: str = "Complete",
     timeout_seconds: int = 600,
 ) -> dict[str, Any]:
-    """Waits for a training job to reach a target status.
-
-    Polls job status until target is reached or timeout occurs.
-    Use after submitting a job to wait for completion.
+    """Wait for job to reach target status. Blocks until done.
 
     Args:
-        name: Name of the training job.
-        target_status: Status to wait for (Complete, Failed).
-        timeout_seconds: Maximum wait time (60-3600, default 600).
+        name: Job name
+        target_status: Status to wait for (Complete/Failed)
+        timeout_seconds: Max wait time (default 600)
 
-    Returns:
-        JSON with {job: str, status: str, reached: bool}
-
-    Note:
-        This blocks until status is reached. Use get_training_job() for async checks.
+    Returns: {job, status, reached}
     """
     try:
         client = get_trainer_client()

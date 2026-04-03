@@ -8,6 +8,8 @@ AI-powered interface for Kubeflow Training via [Model Context Protocol (MCP)](ht
 Enable your AI assistants to manage distributed training jobs, fine-tune LLMs, and monitor workloads
 on Kubernetes — all through natural language.
 
+![Quick Overview](assets/quick-overview.png)
+
 ## Overview
 
 The Kubeflow MCP Server bridges AI assistants (Claude, Cursor, custom agents) with Kubeflow's
@@ -106,10 +108,93 @@ ollama pull qwen2.5:7b
 uv run python -m kubeflow_mcp.agents.ollama --model qwen2.5:7b
 ```
 
-**Recommended models for tool calling:**
-- `qwen2.5:7b` — Fast, reliable tool calling (7GB RAM)
-- `qwen3:8b` — Thinking + tool calling support (8GB RAM)
-- `phi4-mini-reasoning` — Reasoning with tools (8GB RAM)
+### Token-Efficient Tool Modes
+
+The agent supports multiple tool loading modes for different model context sizes.
+Based on [dynamic toolset patterns](https://www.speakeasy.com/blog/100x-token-reduction-dynamic-toolsets):
+
+| Mode | Tools | Tokens | Best For |
+|------|-------|--------|----------|
+| `static` | 16 | ~2,100 | Large context models (32K+) |
+| `lite` | 5 | ~710 | Small context models (8K) |
+| `progressive` | 3 meta | ~680 | Hierarchical discovery |
+| `semantic` | 2 meta | ~430 | Natural language search |
+
+```bash
+# Default - all 16 tools (for qwen2.5:7b with 32K context)
+uv run python -m kubeflow_mcp.agents.ollama
+
+# Lite mode - 5 core tools (for llama3.2:3b with 8K context)
+uv run python -m kubeflow_mcp.agents.ollama --mode lite
+
+# Progressive mode - hierarchical discovery (minimal tokens)
+uv run python -m kubeflow_mcp.agents.ollama --mode progressive
+
+# Semantic mode - embedding-based search (requires sentence-transformers)
+pip install sentence-transformers
+uv run python -m kubeflow_mcp.agents.ollama --mode semantic
+```
+
+**Runtime commands:**
+- `/mode` - Show current mode and switch (e.g., `/mode lite`)
+- `/tools` - List loaded tools
+- `/think` - Toggle thinking output
+
+<details>
+<summary><b>How Progressive Discovery Works</b></summary>
+
+Instead of loading all 16 tools upfront, the agent uses 3 meta-tools:
+
+1. **`list_tools(prefix)`** - Discover tools by category
+2. **`describe_tools([names])`** - Get full schema for specific tools
+3. **`execute_tool(name, args)`** - Run the discovered tool
+
+```
+User: "Fine-tune llama on squad"
+
+Agent: list_tools("training")
+→ Returns: fine_tune, run_custom_training, run_container_training
+
+Agent: describe_tools(["fine_tune"])
+→ Returns: Full parameter schema
+
+Agent: execute_tool("fine_tune", {"model": "meta-llama/Llama-3.2-1B", "dataset": "squad"})
+→ Executes the training job
+```
+
+This achieves **67% token reduction** while maintaining full functionality.
+</details>
+
+<details>
+<summary><b>How Semantic Search Works</b></summary>
+
+Uses embeddings to find relevant tools from natural language:
+
+1. **`find_tools(query)`** - Search tools by description
+2. **`execute_tool(name, args)`** - Run the found tool
+
+```
+User: "Fine-tune llama on squad"
+
+Agent: find_tools("fine-tune a language model on dataset")
+→ Returns: fine_tune (0.89), run_custom_training (0.72), ...
+
+Agent: execute_tool("fine_tune", {"model": "meta-llama/Llama-3.2-1B", "dataset": "squad"})
+```
+
+This achieves **80% token reduction** with semantic matching.
+</details>
+
+### Recommended Models
+
+| Model | Context | RAM | Tool Calling | Thinking |
+|-------|---------|-----|--------------|----------|
+| `qwen2.5:7b` | 32K | 7GB | ✅ | ❌ |
+| `qwen3:8b` | 32K | 8GB | ✅ | ✅ |
+| `llama3.2:3b` | 8K | 3GB | ✅ | ❌ |
+| `phi4-mini-reasoning` | 16K | 8GB | ✅ | ✅ |
+
+For 8K context models, use `--mode lite` or `--mode progressive`.
 
 ## Available Tools
 
@@ -163,27 +248,7 @@ kubeflow-mcp serve --clients trainer --persona ml-engineer
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     AI Assistant                            │
-│              (Claude / Cursor / Ollama Agent)               │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ MCP Protocol
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Kubeflow MCP Server                       │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │  Planning   │  │  Training   │  │     Monitoring      │  │
-│  │   Tools     │  │   Tools     │  │       Tools         │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ Kubeflow SDK
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Kubernetes Cluster                        │
-│           (Kubeflow Training Operator / TrainJobs)          │
-└─────────────────────────────────────────────────────────────┘
-```
+![Architecture](assets/architecture.png)
 
 ## Cursor Skills
 

@@ -33,32 +33,99 @@ try:
 except ImportError:
     sys.exit("Error: required packages not installed\nRun: uv sync --extra agents")
 
-from kubeflow_mcp.trainer import TOOLS  # noqa: E402
+from kubeflow_mcp.agents.dynamic_tools import (  # noqa: E402
+    get_dynamic_system_prompt,
+    get_dynamic_tools,
+)
+from kubeflow_mcp.trainer import TOOLS, get_tools  # noqa: E402
 
 console = Console()
 
 DEFAULT_MODEL = "qwen2.5:7b"
 DEFAULT_URL = "http://localhost:11434"
 
-SYSTEM_PROMPT = """You are a Kubeflow training assistant.
+# Tool modes for different token budgets
+TOOL_MODES = {
+    "static": "All 16 tools loaded (~3K tokens)",
+    "lite": "5 core tools only (~1.5K tokens)",
+    "progressive": "3 meta-tools with hierarchical discovery (~500 tokens)",
+    "semantic": "2 meta-tools with embedding search (~400 tokens)",
+}
 
-Available actions:
-- Check cluster resources and GPUs
-- Estimate resources for models
-- Submit and manage training jobs
-- View logs and job status
+# Full system prompt for static mode
+SYSTEM_PROMPT_FULL = """You are a Kubeflow training assistant. Be concise and action-oriented.
 
-Rules:
-- Only call tools when user requests an action
-- For greetings or questions, respond naturally
-- Always use confirmed=False first to preview, then confirmed=True after user approval
+FINE-TUNING WORKFLOW - RUN ALL STEPS AUTOMATICALLY WITHOUT PAUSING:
+1. get_cluster_resources() → Check available GPUs/nodes
+2. estimate_resources(model) → Check what the model needs (use model ID like "google/gemma-2b")
+3. list_runtimes() → Check available training runtimes
+4. fine_tune(..., confirmed=False) → Show preview (use hf:// prefix: "hf://google/gemma-2b")
+5. STOP HERE - wait for user to confirm
+6. fine_tune(..., confirmed=True) → Submit after user says yes/proceed/confirm
+
+CRITICAL RULES:
+- RUN STEPS 1-4 IN ONE GO: Do NOT pause between steps. Do NOT ask "should I continue?". Just execute all checks and show the preview.
+- ONLY PAUSE AT STEP 5: The ONLY time you stop and wait is after showing the preview.
+- MODEL FORMAT:
+  - estimate_resources(): Use "google/gemma-2b" (no prefix)
+  - fine_tune(): Use "hf://google/gemma-2b" (with hf:// prefix)
+- NO GPUs: If gpu_total=0, automatically use CPU training
+- KEEP IT SHORT: Summarize findings in 1-2 sentences, then show preview
+
+BAD FLOW (too many pauses):
+"No GPUs. Should I check resources?" → user: proceed → "Memory is 30Gi. Should I check runtimes?" → user: proceed
+GOOD FLOW (automatic):
+"No GPUs, using CPU. Model needs 30Gi. Runtime: torch-distributed. Preview: {...}. Confirm?"
+
+RUNTIME COMPATIBILITY:
+- fine_tune() requires 'torch-tune' or 'torchtune' runtime (has model/dataset initializers)
+- If only 'torch-distributed' is available, use run_container_training() with a HuggingFace training image instead
+
+EXAMPLE:
+User: "Fine-tune gemma on alpaca"
+→ get_cluster_resources() → estimate_resources("google/gemma-2b") → list_runtimes()
+→ If 'torch-tune' available: fine_tune("hf://google/gemma-2b", "hf://tatsu-lab/alpaca", confirmed=False)
+→ If only 'torch-distributed': "Runtime doesn't support HF initializers. Use run_container_training() instead."
 """
 
+# Compact system prompt for lite mode
+SYSTEM_PROMPT_LITE = """Kubeflow training assistant. Run full workflow without pausing.
 
-def create_tools() -> list[FunctionTool]:
-    """Convert kubeflow-mcp tools to LlamaIndex FunctionTools."""
+WORKFLOW (run steps 1-4 automatically, only pause at step 5):
+1. get_cluster_resources() 2. estimate_resources("model/name") 3. list_runtimes() 4. fine_tune("hf://model", "hf://dataset", confirmed=False) → PREVIEW
+5. WAIT for confirmation 6. fine_tune(..., confirmed=True)
+
+RULES: Run all checks in one turn. Only pause for final confirmation.
+"""
+
+# Default to full prompt
+SYSTEM_PROMPT = SYSTEM_PROMPT_FULL
+
+
+def create_tools(
+    mode: str = "static",
+    categories: list[str] | None = None,
+) -> list[FunctionTool]:
+    """Convert kubeflow-mcp tools to LlamaIndex FunctionTools.
+
+    Args:
+        mode: Tool loading mode:
+            - "static": All 16 tools (~3K tokens)
+            - "lite": 5 core tools (~1.5K tokens)
+            - "progressive": 3 meta-tools for hierarchical discovery (~500 tokens)
+            - "semantic": 2 meta-tools for embedding search (~400 tokens)
+        categories: For lite mode, which categories to load
+    """
+    # Dynamic modes use meta-tools
+    if mode in ("progressive", "semantic"):
+        tool_funcs = get_dynamic_tools(mode)
+    elif mode == "lite":
+        tool_funcs = get_tools(categories or ["core"])
+    else:
+        tool_funcs = TOOLS  # type: ignore[assignment]
+
     tools = []
-    for tool_func in TOOLS:
+    for tool_func in tool_funcs:
         doc = tool_func.__doc__ or ""
         desc = doc.split("\n")[0] if doc else tool_func.__name__
 
@@ -85,7 +152,14 @@ def _format_tool_result(result: Any, max_lines: int = 15) -> str:
 
 
 class OllamaAgent:
-    """Ollama agent using LlamaIndex FunctionAgent with thinking support."""
+    """Ollama agent using LlamaIndex FunctionAgent with thinking support.
+
+    Supports multiple tool modes for different context budgets:
+        - "static": All 16 tools (~3K tokens) - best accuracy
+        - "lite": 5 core tools (~1.5K tokens) - good for 8K models
+        - "progressive": 3 meta-tools (~500 tokens) - hierarchical discovery
+        - "semantic": 2 meta-tools (~400 tokens) - embedding-based discovery
+    """
 
     _agent: FunctionAgent | None
     _tools: list[FunctionTool] | None
@@ -93,15 +167,29 @@ class OllamaAgent:
     memory: ChatMemoryBuffer | None
     llm: Ollama | None
 
-    def __init__(self, model: str = DEFAULT_MODEL, base_url: str = DEFAULT_URL):
+    def __init__(
+        self,
+        model: str = DEFAULT_MODEL,
+        base_url: str = DEFAULT_URL,
+        tool_mode: str = "static",
+    ):
         self.model = model
         self.base_url = base_url
+        self.tool_mode = tool_mode
         self._agent = None
         self._tools = None
         self._thinking_supported = None  # None = unknown, True/False = tested
         self._use_thinking = True  # User preference
         self.memory = None
         self.llm = None
+
+        # Set system prompt based on mode
+        if tool_mode in ("progressive", "semantic"):
+            self._system_prompt = get_dynamic_system_prompt(tool_mode)
+        elif tool_mode == "lite":
+            self._system_prompt = SYSTEM_PROMPT_LITE
+        else:
+            self._system_prompt = SYSTEM_PROMPT_FULL
 
         # Dedicated event loop in background thread (prevents "Event loop is closed" errors)
         import asyncio
@@ -134,7 +222,8 @@ class OllamaAgent:
         sys.stderr = io.StringIO()
 
         try:
-            self._tools = create_tools()
+            # Create tools based on mode
+            self._tools = create_tools(mode=self.tool_mode)
             self.llm = self._create_llm(with_thinking)
             self.memory = ChatMemoryBuffer.from_defaults(token_limit=8000)
 
@@ -142,7 +231,7 @@ class OllamaAgent:
                 tools=self._tools,  # type: ignore[arg-type]
                 llm=self.llm,
                 memory=self.memory,
-                system_prompt=SYSTEM_PROMPT,
+                system_prompt=self._system_prompt,
             )
         finally:
             sys.stderr = old_stderr
@@ -164,10 +253,32 @@ class OllamaAgent:
                     tools=self._tools,  # type: ignore[arg-type]
                     llm=self.llm,
                     memory=self.memory,
-                    system_prompt=SYSTEM_PROMPT,
+                    system_prompt=self._system_prompt,
                 )
             finally:
                 sys.stderr = old_stderr
+
+    def set_mode(self, mode: str) -> int:
+        """Switch tool mode at runtime. Returns number of tools loaded."""
+        if mode not in TOOL_MODES:
+            raise ValueError(f"Unknown mode: {mode}. Choose from: {list(TOOL_MODES.keys())}")
+
+        self.tool_mode = mode
+
+        # Update system prompt based on mode
+        if mode in ("progressive", "semantic"):
+            self._system_prompt = get_dynamic_system_prompt(mode)
+        elif mode == "lite":
+            self._system_prompt = SYSTEM_PROMPT_LITE
+        else:
+            self._system_prompt = SYSTEM_PROMPT_FULL
+
+        # Force agent recreation with new tools
+        self._agent = None
+        self._tools = None
+        self._ensure_agent(with_thinking=self._use_thinking and self._thinking_supported is not False)
+
+        return len(self._tools) if self._tools else 0
 
     async def _chat_async(
         self,
@@ -251,20 +362,36 @@ class OllamaAgent:
         on_tool_call=None,
         on_tool_result=None,
     ) -> tuple[str, list[dict]]:
-        """Synchronous chat wrapper using dedicated event loop."""
+        """Synchronous chat wrapper using dedicated event loop.
+
+        Uses short polling intervals to allow Ctrl+C to interrupt.
+        """
         import asyncio
 
         future = asyncio.run_coroutine_threadsafe(
             self._chat_async(message, on_thinking, on_tool_call, on_tool_result),
             self._loop,
         )
-        return future.result(timeout=300)  # 5 min timeout
+
+        # Poll with short timeout to allow KeyboardInterrupt
+        while True:
+            try:
+                return future.result(timeout=0.5)
+            except TimeoutError:
+                continue
+            except KeyboardInterrupt:
+                future.cancel()
+                raise
 
     def close(self):
         """Clean up agent resources."""
-        if self._loop and self._loop.is_running():
-            self._loop.call_soon_threadsafe(self._loop.stop)
-            self._loop_thread.join(timeout=5)
+        try:
+            if self._loop and self._loop.is_running():
+                self._loop.call_soon_threadsafe(self._loop.stop)
+            if self._loop_thread and self._loop_thread.is_alive():
+                self._loop_thread.join(timeout=2)
+        except Exception:
+            pass  # Ignore cleanup errors
 
 
 def _check_ollama_model(model: str, url: str) -> tuple[bool, str]:
@@ -292,39 +419,37 @@ def _check_ollama_model(model: str, url: str) -> tuple[bool, str]:
         return False, str(e)
 
 
-def run_chat(model: str = DEFAULT_MODEL, url: str = DEFAULT_URL):
-    """Run interactive chat loop with rich UI."""
+def run_chat(
+    model: str = DEFAULT_MODEL,
+    url: str = DEFAULT_URL,
+    tool_mode: str = "static",
+):
+    """Run interactive chat loop with rich UI.
+
+    Args:
+        model: Ollama model name
+        url: Ollama server URL
+        tool_mode: Tool loading mode:
+            - "static": All 16 tools (~3K tokens)
+            - "lite": 5 core tools (~1.5K tokens)
+            - "progressive": 3 meta-tools, hierarchical discovery (~500 tokens)
+            - "semantic": 2 meta-tools, embedding search (~400 tokens)
+    """
     # Welcome panel
     welcome = Table.grid(padding=(0, 1))
     welcome.add_column(justify="left")
     welcome.add_row(Text("Kubeflow Training Assistant", style="bold bright_cyan"))
     welcome.add_row(Text(f"Model: {model}", style="bright_green"))
     welcome.add_row(Text(f"Ollama: {url}", style="bright_white"))
+    mode_desc = TOOL_MODES.get(tool_mode, tool_mode)
+    welcome.add_row(Text(f"Tools: {mode_desc}", style="bright_yellow"))
     welcome.add_row()
     welcome.add_row(Text("Commands:", style="bright_yellow"))
     welcome.add_row(Text("  /tools  - List available tools", style="white"))
-    welcome.add_row(Text("  /think  - Toggle thinking mode (for reasoning models)", style="white"))
+    welcome.add_row(Text("  /mode   - Switch tool mode (static/lite/progressive/semantic)", style="white"))
+    welcome.add_row(Text("  /think  - Toggle thinking output (for reasoning models)", style="white"))
     welcome.add_row(Text("  exit    - Quit the agent", style="white"))
     welcome.add_row(Text("  Ctrl+C  - Cancel current request", style="white"))
-
-    # Check model capabilities
-    # Models with BOTH thinking AND tool support
-    thinking_with_tools = ["qwq", "phi4-reasoning", "phi4-mini-reasoning", "qwen3"]
-    # Models with thinking but NO tool support
-    thinking_no_tools = ["deepseek-r1", "lfm2.5-thinking", "marco-o1"]
-
-    has_thinking_and_tools = any(tm in model.lower() for tm in thinking_with_tools)
-    has_thinking_no_tools = any(tm in model.lower() for tm in thinking_no_tools)
-
-    if has_thinking_and_tools:
-        welcome.add_row()
-        welcome.add_row(Text("💭 Thinking + Tools supported!", style="bright_magenta"))
-    elif has_thinking_no_tools:
-        welcome.add_row()
-        welcome.add_row(
-            Text("⚠️  This model has thinking but NO tool support", style="bright_yellow")
-        )
-        welcome.add_row(Text("   Try: phi4-mini-reasoning or qwen3:8b", style="yellow"))
 
     console.print()
     console.print(
@@ -345,7 +470,7 @@ def run_chat(model: str = DEFAULT_MODEL, url: str = DEFAULT_URL):
         console.print(f"[bright_red]✗ {model_msg}[/bright_red]")
         return
 
-    agent = OllamaAgent(model=model, base_url=url)
+    agent = OllamaAgent(model=model, base_url=url, tool_mode=tool_mode)
 
     # Pre-load agent
     console.print("[bright_cyan]Loading tools...[/bright_cyan]", end="\r")
@@ -362,14 +487,31 @@ def run_chat(model: str = DEFAULT_MODEL, url: str = DEFAULT_URL):
         "[bright_yellow]💡 Try: 'list training jobs' or 'check cluster resources'[/bright_yellow]"
     )
 
-    # State
-    show_thinking = True
+    # Enable readline for command history (up/down arrow navigation)
+    try:
+        import atexit
+        import os
+        import readline  # noqa: F401 - import enables history for input()
+
+        # Optional: persist history across sessions
+        history_file = os.path.expanduser("~/.kubeflow_mcp_history")
+        try:
+            readline.read_history_file(history_file)
+        except FileNotFoundError:
+            pass
+        atexit.register(readline.write_history_file, history_file)
+    except ImportError:
+        pass  # readline not available on some platforms
+
+    # State - thinking OFF by default, auto-enables after first message if model supports it
+    show_thinking = False
     thinking_buffer: list[str] = []
 
     while True:
         try:
             console.print()
-            user_input = console.input("[bold bright_blue]You →[/bold bright_blue] ").strip()
+            console.print("[bold bright_blue]You →[/bold bright_blue] ", end="")
+            user_input = input().strip()  # Use raw input() for readline history support
 
             if not user_input:
                 continue
@@ -395,6 +537,26 @@ def run_chat(model: str = DEFAULT_MODEL, url: str = DEFAULT_URL):
                     console.print(
                         "[dim]Note: Only reasoning models (deepseek-r1, qwq, etc.) show thinking output[/dim]"
                     )
+                continue
+
+            if user_input.lower().startswith("/mode"):
+                parts = user_input.split()
+                if len(parts) == 1:
+                    # Show current mode and options
+                    console.print(f"\n[bold]Current mode:[/bold] {agent.tool_mode}")
+                    console.print("\n[bold]Available modes:[/bold]")
+                    for mode_name, mode_desc in TOOL_MODES.items():
+                        marker = "→" if mode_name == agent.tool_mode else " "
+                        console.print(f"  {marker} [bright_cyan]{mode_name}[/bright_cyan]: {mode_desc}")
+                    console.print("\n[dim]Usage: /mode <name>[/dim]")
+                else:
+                    new_mode = parts[1].lower()
+                    try:
+                        console.print(f"[bright_cyan]Switching to {new_mode} mode...[/bright_cyan]")
+                        num_tools = agent.set_mode(new_mode)
+                        console.print(f"[bright_green]✓ Switched to {new_mode} ({num_tools} tools)[/bright_green]")
+                    except ValueError as e:
+                        console.print(f"[bright_red]✗ {e}[/bright_red]")
                 continue
 
             # Show user message
@@ -499,23 +661,37 @@ def run_chat(model: str = DEFAULT_MODEL, url: str = DEFAULT_URL):
             # Clear any pending status
             console.print(" " * 40, end="\r")
 
+            # Notify user if thinking is available (but don't auto-enable - keeps output clean)
+            if agent._thinking_supported is True and not hasattr(agent, "_thinking_notified"):
+                agent._thinking_notified = True  # type: ignore[attr-defined]
+                console.print("[dim]💭 Thinking supported. Use /think to see model reasoning.[/dim]")
+
             # Newline after thinking
             if thinking_buffer:
                 console.print()
 
-            # Assistant response
-            console.print()
-            console.print(
-                Panel(
-                    Markdown(response),
-                    title="[bold bright_green]Assistant[/bold bright_green]",
-                    border_style="bright_green",
-                    padding=(0, 2),
+            # Only show assistant panel if there's actual response content
+            if response and response.strip():
+                console.print()
+                console.print(
+                    Panel(
+                        Markdown(response),
+                        title="[bold bright_green]Assistant[/bold bright_green]",
+                        border_style="bright_green",
+                        padding=(0, 2),
+                    )
                 )
-            )
 
         except KeyboardInterrupt:
-            console.print("\n[yellow]Interrupted. Type 'exit' to quit.[/yellow]")
+            console.print("\n[yellow]Interrupted. Press Ctrl+C again to quit, or continue typing.[/yellow]")
+            try:
+                # Wait briefly for another Ctrl+C
+                import time
+                time.sleep(0.5)
+            except KeyboardInterrupt:
+                agent.close()
+                console.print("[dim italic]Goodbye![/dim italic]")
+                break
             continue
         except EOFError:
             agent.close()
@@ -526,12 +702,41 @@ def run_chat(model: str = DEFAULT_MODEL, url: str = DEFAULT_URL):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Kubeflow MCP Ollama Agent")
+    parser = argparse.ArgumentParser(
+        description="Kubeflow MCP Ollama Agent",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Tool modes:
+  static      All 16 tools (~3K tokens) - best accuracy, needs 32K context
+  lite        5 core tools (~1.5K tokens) - good for 8K models
+  progressive 3 meta-tools (~500 tokens) - hierarchical discovery, 100x reduction
+  semantic    2 meta-tools (~400 tokens) - embedding search, needs sentence-transformers
+
+Examples:
+  # Default - all tools (for qwen2.5:7b with 32K context)
+  python -m kubeflow_mcp.agents.ollama
+
+  # Lite mode (for llama3.2:3b with 8K context)
+  python -m kubeflow_mcp.agents.ollama --mode lite
+
+  # Progressive mode (minimal tokens, hierarchical discovery)
+  python -m kubeflow_mcp.agents.ollama --mode progressive
+
+  # Semantic mode (requires: pip install sentence-transformers)
+  python -m kubeflow_mcp.agents.ollama --mode semantic
+        """,
+    )
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Ollama model")
     parser.add_argument("--url", default=DEFAULT_URL, help="Ollama server URL")
+    parser.add_argument(
+        "--mode",
+        choices=["static", "lite", "progressive", "semantic"],
+        default="static",
+        help="Tool loading mode (default: static)",
+    )
     args = parser.parse_args()
 
-    run_chat(model=args.model, url=args.url)
+    run_chat(model=args.model, url=args.url, tool_mode=args.mode)
 
 
 if __name__ == "__main__":

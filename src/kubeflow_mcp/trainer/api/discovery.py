@@ -19,21 +19,14 @@ def list_training_jobs(
     status: str | None = None,
     limit: int = 50,
 ) -> dict[str, Any]:
-    """Lists training jobs in the Kubernetes cluster.
-
-    Returns jobs with their current status, creation time, and resource usage.
-    Use this to check what training jobs exist before submitting new ones.
+    """List training jobs in the cluster.
 
     Args:
-        runtime: Filter by runtime name.
-        status: Filter by status (Running, Succeeded, Failed, Pending, Suspended).
-        limit: Maximum jobs to return (1-100, default 50).
+        runtime: Filter by runtime name
+        status: Filter by status (Running/Succeeded/Failed/Pending/Suspended)
+        limit: Max jobs to return (default 50)
 
-    Returns:
-        JSON with {jobs: [{name, namespace, status, created_at}], total: int}
-
-    Note:
-        Do NOT use for real-time monitoring. Use get_training_logs() instead.
+    Returns: {jobs: [{name, status, runtime}], total}
     """
     try:
         client = get_trainer_client()
@@ -61,19 +54,12 @@ def list_training_jobs(
 
 
 def get_training_job(name: str) -> dict[str, Any]:
-    """Gets detailed information about a specific training job.
-
-    Returns job configuration, status, worker details, and resource usage.
-    Use after list_training_jobs() to inspect a specific job.
+    """Get details of a specific training job.
 
     Args:
-        name: Name of the training job.
+        name: Job name
 
-    Returns:
-        JSON with {name, status, runtime, config}
-
-    Note:
-        For logs, use get_training_logs(). For events, use get_training_events().
+    Returns: {name, status, runtime}
     """
     try:
         client = get_trainer_client()
@@ -100,15 +86,9 @@ def get_training_job(name: str) -> dict[str, Any]:
 
 
 def list_runtimes() -> dict[str, Any]:
-    """Lists available training runtimes in the cluster.
+    """List available training runtimes. Use if fine_tune() fails with "runtime not found".
 
-    Returns ClusterTrainingRuntimes that define pre-configured training environments.
-
-    Returns:
-        JSON with {runtimes: [{name, framework}], total: int}
-
-    Note:
-        Runtimes define default images, packages, and configurations.
+    Returns: {runtimes: [{name}], total}
     """
     try:
         client = get_trainer_client()
@@ -134,16 +114,12 @@ def list_runtimes() -> dict[str, Any]:
 
 
 def get_runtime(name: str) -> dict[str, Any]:
-    """Gets details of a specific training runtime.
-
-    Returns runtime configuration including image, packages, and settings.
-    Use to understand what a runtime provides before using it.
+    """Get runtime configuration details.
 
     Args:
-        name: Runtime name.
+        name: Runtime name
 
-    Returns:
-        JSON with {name, config}
+    Returns: {name, config}
     """
     try:
         client = get_trainer_client()
@@ -168,16 +144,12 @@ def get_runtime(name: str) -> dict[str, Any]:
 
 
 def get_runtime_packages(name: str) -> dict[str, Any]:
-    """Gets the pip packages installed in a training runtime.
-
-    Returns list of Python packages available in the runtime.
-    Use to verify if required packages are pre-installed.
+    """Get pip packages installed in a runtime.
 
     Args:
-        name: Runtime name.
+        name: Runtime name
 
-    Returns:
-        JSON with {runtime: str, packages: [str]}
+    Returns: {runtime, packages}
     """
     try:
         client = get_trainer_client()

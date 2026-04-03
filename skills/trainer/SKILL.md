@@ -56,12 +56,13 @@ Use this skill when the user wants to:
 
 ### Fine-Tuning Workflow
 
-1. `get_cluster_resources()` - Verify GPUs available
-2. `estimate_resources(model)` - Get recommended settings
-3. `fine_tune(..., confirmed=False)` - Preview config
-4. User reviews and approves
-5. `fine_tune(..., confirmed=True)` - Submit job
-6. `wait_for_training()` or `get_training_logs()` - Monitor
+1. `get_cluster_resources()` - Check available GPUs/nodes
+2. `estimate_resources(model)` - Check what the model needs
+3. `list_runtimes()` - Check available training runtimes
+4. `fine_tune(..., confirmed=False)` - Preview the job config
+5. User reviews and approves
+6. `fine_tune(..., confirmed=True)` - Submit the job
+7. `get_training_logs()` or `wait_for_training()` - Monitor progress
 
 ### Debugging Workflow
 
@@ -83,6 +84,62 @@ All mutation tools require `confirmed=True` to execute:
 
 Always call `estimate_resources()` before `fine_tune()` to get recommended GPU and memory settings.
 
+### Runtime Patches
+
+Customize runtime behavior when submitting jobs:
+
+```python
+fine_tune(
+    model="hf://google/gemma-2b",
+    dataset="hf://tatsu-lab/alpaca",
+    # Target specific GPU nodes
+    node_selector={"node-type": "gpu-a100"},
+    # Schedule on tainted GPU nodes
+    tolerations=[{"key": "nvidia.com/gpu", "operator": "Exists"}],
+    # Add environment variables
+    env=[{"name": "NCCL_DEBUG", "value": "INFO"}],
+    # Mount a PVC for checkpoints
+    volumes=[{"name": "ckpt", "persistentVolumeClaim": {"claimName": "my-pvc"}}],
+    volume_mounts=[{"name": "ckpt", "mountPath": "/checkpoints"}],
+    confirmed=True
+)
+```
+
+| Patch Option | Purpose |
+|--------------|---------|
+| `node_selector` | Target specific nodes (e.g., GPU type) |
+| `tolerations` | Schedule on tainted nodes |
+| `env` | Add environment variables |
+| `volumes` | Add PVC/ConfigMap/Secret volumes |
+| `volume_mounts` | Mount volumes to containers |
+
+## Token-Efficient Tool Modes (Ollama Agent)
+
+The Ollama agent supports dynamic tool loading for context-limited models:
+
+| Mode | Tools | Tokens | Use Case |
+|------|-------|--------|----------|
+| `static` | 16 | ~2,100 | Full access (32K context) |
+| `lite` | 5 core | ~710 | Limited context (8K) |
+| `progressive` | 3 meta | ~680 | Hierarchical discovery |
+| `semantic` | 2 meta | ~430 | Natural language search |
+
+### Progressive Discovery (3 meta-tools)
+
+```
+list_tools(prefix) → describe_tools([names]) → execute_tool(name, args)
+```
+
+Example: `list_tools("training")` → `describe_tools(["fine_tune"])` → `execute_tool("fine_tune", {...})`
+
+### Semantic Search (2 meta-tools)
+
+```
+find_tools(query) → execute_tool(name, args)
+```
+
+Example: `find_tools("fine-tune a model")` → `execute_tool("fine_tune", {...})`
+
 ## Common Issues
 
 | Issue | Solution |
@@ -91,6 +148,8 @@ Always call `estimate_resources()` before `fine_tune()` to get recommended GPU a
 | Image pull failed | Check image name, verify imagePullSecrets |
 | OOMKilled | Reduce batch_size or increase memory |
 | Job stuck Pending | Check events with `get_training_events()` |
+| Runtime not found | Call `list_runtimes()` to see available options |
+| Context overflow | Use `--mode lite` or `--mode progressive` |
 
 ## Related Skills
 

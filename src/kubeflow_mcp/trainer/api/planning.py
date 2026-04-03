@@ -88,16 +88,10 @@ def _estimate_from_params(params: float, batch_size: int = 4) -> dict[str, Any]:
 
 
 def get_cluster_resources() -> dict[str, Any]:
-    """Gets available cluster resources (GPUs, nodes).
+    """Check cluster GPU availability. CALL FIRST before any training.
 
-    Returns GPU availability and node information for capacity planning.
-    Call this before submitting training jobs to verify resources.
-
-    Returns:
-        JSON with {gpu_total: int, nodes_with_gpu: int, nodes: [{name, gpus, memory}]}
-
-    Note:
-        Do NOT use for real-time monitoring. This is a point-in-time snapshot.
+    Returns: {gpu_total, nodes_with_gpu, node_count, nodes}
+    If gpu_total=0 → no GPUs, cannot fine-tune LLMs.
     """
     try:
         from kubernetes import client, config
@@ -146,25 +140,21 @@ def estimate_resources(
     num_workers: int = 1,
     batch_size: int = 4,
 ) -> dict[str, Any]:
-    """Estimates resource requirements for training a model.
-
-    Fetches model info from HuggingFace Hub to calculate accurate estimates
-    based on actual parameter count.
+    """Estimate GPU/memory for training a HuggingFace model.
 
     Args:
-        model: HuggingFace model path (e.g., "meta-llama/Llama-3.2-1B").
-        num_workers: Number of parallel training workers (1-8, default 1).
-        batch_size: Per-device batch size (1-32, default 4).
+        model: HuggingFace model ID (e.g., "google/gemma-2b" or "hf://google/gemma-2b")
+        num_workers: Distributed workers (default 1)
+        batch_size: Per-GPU batch size (default 4)
 
-    Returns:
-        JSON with {gpu_per_worker, memory_per_worker, total_gpu, params_billions}
-
-    Note:
-        Estimates assume LoRA fine-tuning with bf16. Full fine-tuning needs 4-6x more.
+    Returns: {gpu_memory_required, gpu_type_recommended, total_gpu}
     """
     try:
+        # Strip hf:// prefix if present (fine_tune uses hf://, but HF API needs raw ID)
+        model_id = model.removeprefix("hf://")
+
         # Fetch model info from HuggingFace
-        hf_info = _get_model_info_from_hf(model)
+        hf_info = _get_model_info_from_hf(model_id)
 
         if not hf_info or "error" in hf_info:
             error_msg = hf_info.get("error", "Unknown error") if hf_info else "API failed"

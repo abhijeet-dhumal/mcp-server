@@ -5,20 +5,17 @@ Mirrors kubeflow SDK's client structure:
 """
 
 from functools import lru_cache
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from kubeflow.trainer import TrainerClient
+# Import at module level to avoid import deadlocks when tools are called rapidly
+from kubeflow.trainer import TrainerClient
 
 
 @lru_cache(maxsize=1)
-def get_trainer_client() -> "TrainerClient":
+def get_trainer_client() -> TrainerClient:
     """Get or create TrainerClient singleton.
 
     Uses default KubernetesBackendConfig with current kubeconfig context.
     """
-    from kubeflow.trainer import TrainerClient
-
     return TrainerClient()
 
 

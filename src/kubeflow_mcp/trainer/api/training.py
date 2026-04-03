@@ -13,46 +13,188 @@ from kubeflow_mcp.common.types import PreviewResponse, ToolError, ToolResponse
 from kubeflow_mcp.common.utils import get_trainer_client
 from kubeflow_mcp.core.security import is_safe_python_code, validate_k8s_name
 
+# Import Kubeflow SDK types at module level to avoid import deadlocks
+# when tools are called in rapid succession
+try:
+    from kubeflow.trainer.options import (
+        ContainerPatch,
+        JobSetSpecPatch,
+        JobSetTemplatePatch,
+        JobSpecPatch,
+        JobTemplatePatch,
+        PodSpecPatch,
+        PodTemplatePatch,
+        ReplicatedJobPatch,
+        RuntimePatch,
+        TrainingRuntimeSpecPatch,
+    )
+    from kubeflow.trainer.types.types import (
+        BuiltinTrainer,
+        CustomTrainer,
+        CustomTrainerContainer,
+        HuggingFaceDatasetInitializer,
+        HuggingFaceModelInitializer,
+        Initializer,
+        LoraConfig,
+        TorchTuneConfig,
+    )
+
+    _SDK_AVAILABLE = True
+except ImportError:
+    _SDK_AVAILABLE = False
+
+
+def _build_runtime_patch(
+    node_selector: dict[str, str] | None = None,
+    tolerations: list[dict[str, Any]] | None = None,
+    env: list[dict[str, Any]] | None = None,
+    volumes: list[dict[str, Any]] | None = None,
+    volume_mounts: list[dict[str, Any]] | None = None,
+) -> list[Any]:
+    """Build RuntimePatch options for the SDK.
+
+    Returns a list of options to pass to client.train(options=...).
+    Returns empty list if no patches specified.
+    """
+    if not any([node_selector, tolerations, env, volumes, volume_mounts]):
+        return []
+
+    if not _SDK_AVAILABLE:
+        return []
+
+    # Build container patches (env, volume_mounts)
+    containers = None
+    if env or volume_mounts:
+        containers = [
+            ContainerPatch(
+                name="trainer",  # Default trainer container name
+                env=env,
+                volume_mounts=volume_mounts,
+            )
+        ]
+
+    # Build pod spec patch
+    pod_spec = PodSpecPatch(
+        node_selector=node_selector,
+        tolerations=tolerations,
+        volumes=volumes,
+        containers=containers,
+    )
+
+    # Build the full patch hierarchy
+    patch = RuntimePatch(
+        training_runtime_spec=TrainingRuntimeSpecPatch(
+            template=JobSetTemplatePatch(
+                spec=JobSetSpecPatch(
+                    replicated_jobs=[
+                        ReplicatedJobPatch(
+                            name="node",  # Default replicated job name
+                            template=JobTemplatePatch(
+                                spec=JobSpecPatch(
+                                    template=PodTemplatePatch(
+                                        spec=pod_spec,
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ],
+                ),
+            ),
+        ),
+    )
+
+    return [patch]
+
 
 def fine_tune(
     model: str,
     dataset: str,
     runtime: str = "torch-tune",
     hf_token: str | None = None,
+    # Training parameters (TorchTuneConfig)
+    batch_size: int = 4,
+    epochs: int = 1,
+    num_nodes: int = 1,
+    lora_rank: int = 8,
+    lora_alpha: int = 16,
+    # Runtime patches
+    node_selector: dict[str, str] | None = None,
+    tolerations: list[dict[str, Any]] | None = None,
+    env: list[dict[str, Any]] | None = None,
+    volumes: list[dict[str, Any]] | None = None,
+    volume_mounts: list[dict[str, Any]] | None = None,
     confirmed: bool = False,
 ) -> dict[str, Any]:
-    """Submits a fine-tuning job for a HuggingFace model.
+    """Fine-tune a HuggingFace model using torchtune.
 
-    Creates a training job using TorchTune with the specified runtime.
-    Use list_runtimes() first to see available runtimes.
+    Call get_cluster_resources() first to verify GPUs available.
 
     Args:
-        model: HuggingFace model path (e.g., "meta-llama/Llama-3.2-1B").
-        dataset: HuggingFace dataset path (e.g., "imdatta0/ultrachat_1k").
-        runtime: ClusterTrainingRuntime name (default "torch-tune").
-        hf_token: HuggingFace token for gated models (optional).
-        confirmed: Set True to execute. Returns preview if False.
+        model: HuggingFace model URI with hf:// prefix (e.g., "hf://google/gemma-2b")
+        dataset: HuggingFace dataset URI with hf:// prefix (e.g., "hf://tatsu-lab/alpaca")
+        runtime: Runtime name (default "torch-tune"). Use list_runtimes() if not found.
+        hf_token: Token for gated models (Llama, Mistral)
+        batch_size: Batch size per GPU (default 4)
+        epochs: Training epochs (default 1)
+        num_nodes: Number of distributed nodes (default 1)
+        lora_rank: LoRA rank for parameter-efficient fine-tuning (default 8)
+        lora_alpha: LoRA alpha scaling factor (default 16)
+        node_selector: Target specific nodes (e.g., {"node-type": "gpu-a100"})
+        tolerations: Schedule on tainted nodes
+        env: Extra env vars
+        volumes: Add volumes
+        volume_mounts: Mount volumes
+        confirmed: True to submit, False for preview only
 
-    Returns:
-        Preview: config summary if confirmed=False
-        Success: {job_name, status, message}
-
-    Note:
-        Requires a compatible ClusterTrainingRuntime in the cluster.
+    Returns: Preview if confirmed=False, else {job_name, status}
     """
     try:
-        from kubeflow.trainer.types.types import (
-            HuggingFaceDatasetInitializer,
-            HuggingFaceModelInitializer,
-            Initializer,
-        )
+        if not _SDK_AVAILABLE:
+            return ToolError(
+                error="Kubeflow SDK not available",
+                error_code=ErrorCode.SDK_ERROR,
+            ).model_dump()
 
-        config = {
+        config: dict[str, Any] = {
             "model": model,
             "dataset": dataset,
             "runtime": runtime,
             "hf_token": "***" if hf_token else None,
+            # Training params
+            "batch_size": batch_size,
+            "epochs": epochs,
+            "num_nodes": num_nodes,
+            "lora_rank": lora_rank,
+            "lora_alpha": lora_alpha,
         }
+
+        # Add runtime patches to preview if specified
+        if node_selector:
+            config["node_selector"] = node_selector
+        if tolerations:
+            config["tolerations"] = tolerations
+        if env:
+            config["env"] = env
+        if volumes:
+            config["volumes"] = volumes
+        if volume_mounts:
+            config["volume_mounts"] = volume_mounts
+
+        # Check if runtime supports HuggingFace initializers
+        # Runtimes like 'torch-tune' have model-initializer and dataset-initializer jobs
+        # Runtimes like 'torch-distributed' do NOT - use CustomTrainer approach instead
+        hf_compatible_runtimes = ["torch-tune", "torchtune"]
+        use_initializer_pattern = runtime in hf_compatible_runtimes
+
+        if use_initializer_pattern:
+            config["mode"] = "builtin_trainer"
+            config["note"] = "Using BuiltinTrainer with TorchTuneConfig + Initializers"
+        else:
+            config["mode"] = "custom_trainer"
+            config["note"] = (
+                f"Runtime '{runtime}' doesn't have initializer jobs. "
+                "Using CustomTrainer with packages_to_install instead."
+            )
 
         if not confirmed:
             return PreviewResponse(
@@ -60,23 +202,111 @@ def fine_tune(
                 config=config,
             ).model_dump()
 
-        # Build initializer
-        initializer = Initializer(
-            model=HuggingFaceModelInitializer(
-                storage_uri=model,
-                access_token=hf_token,
-            ),
-            dataset=HuggingFaceDatasetInitializer(
-                storage_uri=dataset,
-                access_token=hf_token,
-            ),
+        # Build runtime patch options if any patches specified
+        options = _build_runtime_patch(
+            node_selector=node_selector,
+            tolerations=tolerations,
+            env=env,
+            volumes=volumes,
+            volume_mounts=volume_mounts,
         )
 
         client = get_trainer_client()
-        job_name = client.train(
-            runtime=runtime,
-            initializer=initializer,
-        )
+
+        if use_initializer_pattern:
+            # Use BuiltinTrainer + Initializer pattern
+            # (runtime has model-initializer/dataset-initializer jobs)
+            initializer = Initializer(
+                model=HuggingFaceModelInitializer(
+                    storage_uri=model,
+                    access_token=hf_token,
+                ),
+                dataset=HuggingFaceDatasetInitializer(
+                    storage_uri=dataset,
+                    access_token=hf_token,
+                ),
+            )
+
+            # Configure BuiltinTrainer with TorchTuneConfig
+            trainer = BuiltinTrainer(
+                config=TorchTuneConfig(
+                    batch_size=batch_size,
+                    epochs=epochs,
+                    num_nodes=num_nodes,
+                    peft_config=LoraConfig(
+                        lora_rank=lora_rank,
+                        lora_alpha=lora_alpha,
+                    ),
+                )
+            )
+
+            job_name = client.train(
+                runtime=runtime,
+                initializer=initializer,
+                trainer=trainer,
+                options=options if options else None,
+            )
+        else:
+            # Use CustomTrainer pattern (runtime doesn't have initializer jobs)
+            # Downloads model/dataset inside the training function
+            model_id = model.removeprefix("hf://")
+            dataset_id = dataset.removeprefix("hf://")
+
+            # Generate training script that downloads and fine-tunes using torchtune
+            training_script = f'''
+import os
+from huggingface_hub import snapshot_download, login
+from datasets import load_dataset
+
+# Login if token provided
+hf_token = os.environ.get("HF_TOKEN")
+if hf_token:
+    login(token=hf_token)
+
+# Download model and dataset
+print("Downloading model: {model_id}")
+snapshot_download("{model_id}", local_dir="/workspace/model")
+
+print("Downloading dataset: {dataset_id}")
+ds = load_dataset("{dataset_id}")
+ds.save_to_disk("/workspace/dataset")
+
+# Run torchtune LoRA fine-tuning
+print("Starting fine-tuning with torchtune...")
+print("Config: batch_size={batch_size}, epochs={epochs}, lora_rank={lora_rank}, lora_alpha={lora_alpha}")
+
+# Create torchtune config and run
+os.system("""tune run lora_finetune_single_device \\
+    --config llama3_2/1B_lora_single_device \\
+    model.path=/workspace/model \\
+    dataset.source=/workspace/dataset \\
+    batch_size={batch_size} \\
+    epochs={epochs} \\
+    lora_rank={lora_rank} \\
+    lora_alpha={lora_alpha}
+""")
+'''
+
+            def train_func():
+                exec(training_script)  # noqa: S102
+
+            trainer = CustomTrainer(
+                func=train_func,
+                packages_to_install=[
+                    "torchtune",
+                    "transformers",
+                    "datasets",
+                    "huggingface_hub",
+                    "accelerate",
+                ],
+                num_nodes=num_nodes,
+                env={"HF_TOKEN": hf_token} if hf_token else None,
+            )
+            job_name = client.train(
+                runtime=runtime,
+                trainer=trainer,
+                options=options if options else None,
+            )
 
         return ToolResponse(
             data={
@@ -87,9 +317,24 @@ def fine_tune(
         ).model_dump()
 
     except Exception as e:
+        # Extract detailed error info for debugging
+        error_msg = str(e)
+        details: dict[str, Any] | None = None
+
+        # Try to get more context from exception chain
+        if e.__cause__:
+            details = {"cause": str(e.__cause__)}
+        elif hasattr(e, "response"):
+            # Kubernetes API errors often have response body
+            try:
+                details = {"response": e.response.text}  # type: ignore[union-attr]
+            except Exception:
+                pass
+
         return ToolError(
-            error=str(e),
+            error=error_msg,
             error_code=ErrorCode.SDK_ERROR,
+            details=details,
         ).model_dump()
 
 
@@ -101,28 +346,24 @@ def run_custom_training(
     packages: list[str] | None = None,
     confirmed: bool = False,
 ) -> dict[str, Any]:
-    """Submits a training job with custom Python script.
-
-    Executes user-provided training code in a distributed environment.
-    Script is validated for security before execution.
+    """Run custom Python training script on cluster.
 
     Args:
-        script: Python training script content (validated for safety).
-        name: Job name. Auto-generated if not provided.
-        num_nodes: Number of training nodes (1-8, default 1).
-        gpu_per_node: GPUs per node (1-8, default 1).
-        packages: Additional pip packages to install (e.g., ["transformers"]).
-        confirmed: Set True to execute. Returns preview if False.
+        script: Python code (validated for security)
+        name: Job name (auto-generated if omitted)
+        num_nodes: Distributed nodes (default 1)
+        gpu_per_node: GPUs per node (default 1, 0 for CPU)
+        packages: Pip packages to install
+        confirmed: True to submit, False for preview
 
-    Returns:
-        Preview: config summary if confirmed=False
-        Success: {job_name, status, message}
-
-    Note:
-        Script cannot import os, subprocess, or use eval/exec.
+    Returns: Preview if confirmed=False, else {job_name, status}
     """
     try:
-        from kubeflow.trainer.types.types import CustomTrainer
+        if not _SDK_AVAILABLE:
+            return ToolError(
+                error="Kubeflow SDK not available",
+                error_code=ErrorCode.SDK_ERROR,
+            ).model_dump()
 
         safe, reason = is_safe_python_code(script)
         if not safe:
@@ -173,9 +414,19 @@ def run_custom_training(
         ).model_dump()
 
     except Exception as e:
+        error_msg = str(e)
+        details: dict[str, Any] | None = None
+        if e.__cause__:
+            details = {"cause": str(e.__cause__)}
+        elif hasattr(e, "response"):
+            try:
+                details = {"response": e.response.text}  # type: ignore[union-attr]
+            except Exception:
+                pass
         return ToolError(
-            error=str(e),
+            error=error_msg,
             error_code=ErrorCode.SDK_ERROR,
+            details=details,
         ).model_dump()
 
 
@@ -185,38 +436,52 @@ def run_container_training(
     num_nodes: int = 1,
     gpu_per_node: int = 1,
     env: dict[str, str] | None = None,
+    node_selector: dict[str, str] | None = None,
+    tolerations: list[dict[str, Any]] | None = None,
+    volumes: list[dict[str, Any]] | None = None,
+    volume_mounts: list[dict[str, Any]] | None = None,
     confirmed: bool = False,
 ) -> dict[str, Any]:
-    """Submits a training job using a pre-built container image.
-
-    Runs distributed training with a custom Docker/OCI image.
-    Use when you have a pre-packaged training environment.
+    """Run training with a pre-built container image.
 
     Args:
-        image: Container image (e.g., "pytorch/pytorch:2.0-cuda11.8").
-        command: Container command (e.g., ["python", "train.py"]).
-        num_nodes: Number of training nodes (1-8, default 1).
-        gpu_per_node: GPUs per node (1-8, default 1).
-        env: Environment variables as key-value pairs.
-        confirmed: Set True to execute. Returns preview if False.
+        image: Container image (e.g., "pytorch/pytorch:2.0-cuda11.8")
+        command: Override container command (optional)
+        num_nodes: Distributed nodes (default 1)
+        gpu_per_node: GPUs per node (default 1, 0 for CPU)
+        env: Environment variables dict
+        node_selector: Target specific nodes (e.g., {"node-type": "gpu-a100"})
+        tolerations: Schedule on tainted nodes
+        volumes: Add volumes (e.g., [{"name": "data", "persistentVolumeClaim": {"claimName": "my-pvc"}}])
+        volume_mounts: Mount volumes (e.g., [{"name": "data", "mountPath": "/data"}])
+        confirmed: True to submit, False for preview
 
-    Returns:
-        Preview: config summary if confirmed=False
-        Success: {job_name, status, message}
-
-    Note:
-        Image must be accessible from the cluster (public or with imagePullSecrets).
+    Returns: Preview if confirmed=False, else {job_name, status}
     """
     try:
-        from kubeflow.trainer.types.types import CustomTrainerContainer
+        if not _SDK_AVAILABLE:
+            return ToolError(
+                error="Kubeflow SDK not available",
+                error_code=ErrorCode.SDK_ERROR,
+            ).model_dump()
 
-        config = {
+        config: dict[str, Any] = {
             "image": image,
             "command": command,
             "num_nodes": num_nodes,
             "gpu_per_node": gpu_per_node,
             "env": env,
         }
+
+        # Add runtime patches to preview if specified
+        if node_selector:
+            config["node_selector"] = node_selector
+        if tolerations:
+            config["tolerations"] = tolerations
+        if volumes:
+            config["volumes"] = volumes
+        if volume_mounts:
+            config["volume_mounts"] = volume_mounts
 
         if not confirmed:
             return PreviewResponse(
@@ -233,8 +498,19 @@ def run_container_training(
             env=env,
         )
 
+        # Build runtime patch options if any patches specified
+        # Convert env dict to list format for patches
+        env_list = [{"name": k, "value": v} for k, v in (env or {}).items()] if env else None
+        options = _build_runtime_patch(
+            node_selector=node_selector,
+            tolerations=tolerations,
+            env=env_list,
+            volumes=volumes,
+            volume_mounts=volume_mounts,
+        )
+
         client = get_trainer_client()
-        job_name = client.train(trainer=trainer)
+        job_name = client.train(trainer=trainer, options=options if options else None)
 
         return ToolResponse(
             data={
@@ -245,7 +521,17 @@ def run_container_training(
         ).model_dump()
 
     except Exception as e:
+        error_msg = str(e)
+        details: dict[str, Any] | None = None
+        if e.__cause__:
+            details = {"cause": str(e.__cause__)}
+        elif hasattr(e, "response"):
+            try:
+                details = {"response": e.response.text}  # type: ignore[union-attr]
+            except Exception:
+                pass
         return ToolError(
-            error=str(e),
+            error=error_msg,
             error_code=ErrorCode.SDK_ERROR,
+            details=details,
         ).model_dump()

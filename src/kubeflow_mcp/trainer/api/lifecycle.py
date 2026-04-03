@@ -14,19 +14,12 @@ from kubeflow_mcp.common.utils import get_trainer_client
 
 
 def delete_training_job(name: str) -> dict[str, Any]:
-    """Deletes a training job and its associated resources.
-
-    Removes the job, pods, and any associated ConfigMaps/Secrets.
-    Use to clean up completed or failed jobs.
+    """Delete a training job. Irreversible.
 
     Args:
-        name: Name of the training job to delete.
+        name: Job name to delete
 
-    Returns:
-        JSON with {job: str, deleted: bool, message: str}
-
-    Note:
-        This is irreversible. Job logs are lost after deletion.
+    Returns: {job, deleted, message}
     """
     try:
         client = get_trainer_client()
@@ -56,20 +49,13 @@ def suspend_training_job(
     name: str,
     namespace: str | None = None,
 ) -> dict[str, Any]:
-    """Suspends a running training job.
-
-    Pauses the job by scaling workers to zero. Job state is preserved.
-    Use to temporarily free up cluster resources.
+    """Pause a running training job. Resume with resume_training_job().
 
     Args:
-        name: Name of the training job to suspend.
-        namespace: Kubernetes namespace. Uses kubeconfig default if not set.
+        name: Job name
+        namespace: K8s namespace (default from kubeconfig)
 
-    Returns:
-        JSON with {job: str, suspended: bool, message: str}
-
-    Note:
-        Resume with resume_training_job(). Checkpoints are preserved.
+    Returns: {job, suspended, message}
     """
     try:
         from kubernetes import client, config
@@ -114,20 +100,13 @@ def resume_training_job(
     name: str,
     namespace: str | None = None,
 ) -> dict[str, Any]:
-    """Resumes a suspended training job.
-
-    Restarts the job by scaling workers back up. Continues from checkpoint.
-    Use after suspend_training_job() to continue training.
+    """Resume a suspended training job.
 
     Args:
-        name: Name of the training job to resume.
-        namespace: Kubernetes namespace. Uses kubeconfig default if not set.
+        name: Job name
+        namespace: K8s namespace (default from kubeconfig)
 
-    Returns:
-        JSON with {job: str, resumed: bool, message: str}
-
-    Note:
-        Job must have been suspended. Running jobs cannot be resumed.
+    Returns: {job, resumed, message}
     """
     try:
         from kubernetes import client, config
