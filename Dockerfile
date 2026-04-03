@@ -14,12 +14,11 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy project files
-COPY pyproject.toml .
-COPY README.md .
+COPY pyproject.toml README.md ./
 COPY src/ src/
 
 # Install dependencies
-RUN uv sync --extra trainer --no-dev --frozen
+RUN uv sync --extra trainer --no-dev
 
 # Create non-root user
 RUN useradd -m -u 1000 mcp && chown -R mcp:mcp /app
