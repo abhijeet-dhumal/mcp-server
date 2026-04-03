@@ -1,3 +1,17 @@
+# Copyright 2024 The Kubeflow Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """MCP server factory with dynamic client loading.
 
 Designed for extensibility:
@@ -11,7 +25,7 @@ import logging
 from fastmcp import FastMCP
 
 from kubeflow_mcp.core.health import HealthManager
-from kubeflow_mcp.core.policy import get_allowed_tools
+from kubeflow_mcp.core.policy import apply_policy_filters, get_allowed_tools
 from kubeflow_mcp.core.resources import register_skill_resources
 
 logger = logging.getLogger(__name__)
@@ -196,12 +210,43 @@ def create_server(
 
     Returns:
         Configured FastMCP server instance
+
+    Tool filtering is applied in two stages:
+    1. Persona filtering: Built-in or custom persona defines base tool set
+    2. Policy filtering: ~/.kf-mcp-policy.yaml can further restrict via allow/deny lists
     """
     mcp: FastMCP = FastMCP("kubeflow-mcp", instructions=SERVER_INSTRUCTIONS)
+
+    # Stage 1: Get tools allowed by persona
     allowed_tools = get_allowed_tools(persona)
 
     if clients is None:
         clients = ["trainer"]
+
+    # Collect all available tool names first (for policy filtering)
+    all_tool_names: set[str] = set()
+    for client_name in clients:
+        if client_name not in CLIENT_MODULES:
+            continue
+        try:
+            module = importlib.import_module(CLIENT_MODULES[client_name])
+            if hasattr(module, "TOOLS") and module.TOOLS:
+                for tool_func in module.TOOLS:
+                    all_tool_names.add(tool_func.__name__)
+        except ImportError:
+            pass
+
+    # Stage 2: Apply policy filters (allow/deny lists from ~/.kf-mcp-policy.yaml)
+    if allowed_tools is not None:
+        # Start with persona-allowed tools
+        final_allowed = allowed_tools
+    else:
+        # platform-admin: start with all tools
+        final_allowed = all_tool_names
+
+    # Apply policy file restrictions
+    final_allowed = apply_policy_filters(final_allowed)
+    logger.debug(f"Final allowed tools after policy: {len(final_allowed)}")
 
     for client_name in clients:
         if client_name not in CLIENT_MODULES:
@@ -219,7 +264,7 @@ def create_server(
             for tool_func in module.TOOLS:
                 tool_name = tool_func.__name__
 
-                if allowed_tools is None or tool_name in allowed_tools:
+                if tool_name in final_allowed:
                     # Get annotations for this tool (if defined)
                     annotations = TOOL_ANNOTATIONS.get(tool_name)
                     if annotations:

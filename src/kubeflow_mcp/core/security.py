@@ -1,3 +1,17 @@
+# Copyright 2024 The Kubeflow Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Input validation and security checks."""
 
 import ast
@@ -39,8 +53,38 @@ def validate_k8s_name(name: str, field: str = "name") -> ToolError | None:
 
 
 def validate_namespace(namespace: str) -> ToolError | None:
-    """Validate namespace name."""
+    """Validate namespace name format."""
     return validate_k8s_name(namespace, "namespace")
+
+
+def check_namespace_allowed(namespace: str | None) -> ToolError | None:
+    """Check if namespace is allowed by policy.
+
+    Args:
+        namespace: Namespace to check (None uses default, always allowed)
+
+    Returns:
+        ToolError if namespace is restricted, None if allowed
+    """
+    if namespace is None:
+        return None
+
+    # Import here to avoid circular import
+    from kubeflow_mcp.core.policy import get_allowed_namespaces
+
+    allowed = get_allowed_namespaces()
+    if allowed is None:
+        # No restrictions
+        return None
+
+    if namespace not in allowed:
+        return ToolError(
+            error=f"Namespace '{namespace}' not allowed by policy",
+            error_code=ErrorCode.PERMISSION_DENIED,
+            details={"allowed_namespaces": allowed},
+        )
+
+    return None
 
 
 def is_safe_python_code(code: str) -> tuple[bool, str]:

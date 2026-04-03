@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Kubeflow Slack
+    url: https://kubeflow.slack.com/archives/C0PUJJKQ6
+    about: Chat with maintainers on #wg-training
+  - name: 📖 Documentation
+    url: https://github.com/kubeflow/mcp-server/tree/main/docs
+    about: Read architecture and development guides
+  - name: 🎯 Roadmap
+    url: https://github.com/kubeflow/mcp-server/blob/main/docs/ROADMAP.md
+    about: See planned features
+  - name: ❓ Discussions
+    url: https://github.com/kubeflow/mcp-server/discussions
+    about: Ask questions and share ideas

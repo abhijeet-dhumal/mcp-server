@@ -1,8 +1,14 @@
-# Kubeflow MCP Server Maintainers
-# See https://www.kubeflow.org/docs/about/contributing/ for guidelines
+# Kubeflow MCP Server Owners
+#
+# See https://www.kubernetes.dev/docs/guide/owners/ for format details.
+# This file determines who can approve PRs.
 
 approvers:
   - abhijeet-dhumal
+  # TODO: Add more approvers
 
 reviewers:
   - abhijeet-dhumal
+  # TODO: Add more reviewers
+
+# Component-specific owners can be defined in subdirectory OWNERS files

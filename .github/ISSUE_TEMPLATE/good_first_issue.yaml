@@ -1,0 +1,76 @@
+name: 🌱 Good First Issue
+description: Propose a beginner-friendly issue for new contributors
+title: "[Good First Issue]: "
+labels: ["good first issue", "help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a good first issue! These help onboard new contributors.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Clear description of what needs to be done
+      placeholder: |
+        Add a new tool `get_training_metrics()` that retrieves metrics from a running TrainJob.
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Why is this good for beginners?
+      description: Explain why this is suitable for new contributors
+      placeholder: |
+        - Self-contained change in a single file
+        - Follows existing patterns in the codebase
+        - Has clear acceptance criteria
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Implementation Steps
+      description: Break down the task into steps
+      placeholder: |
+        1. Read existing tool in `trainer/api/monitoring.py`
+        2. Create new function following the same pattern
+        3. Add to TOOLS list in `trainer/__init__.py`
+        4. Write unit test
+    validations:
+      required: true
+
+  - type: textarea
+    id: resources
+    attributes:
+      label: Helpful Resources
+      description: Links to docs, code, or examples
+      placeholder: |
+        - [Similar tool](link)
+        - [Kubeflow SDK docs](link)
+        - [DEVELOPMENT.md](docs/DEVELOPMENT.md)
+
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Estimated Difficulty
+      options:
+        - Easy (few hours)
+        - Medium (1-2 days)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: skills
+    attributes:
+      label: Skills Required
+      multiple: true
+      options:
+        - Python
+        - Kubernetes basics
+        - Testing (pytest)
+        - Documentation
+        - CLI tools

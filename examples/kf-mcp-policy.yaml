@@ -1,0 +1,52 @@
+# Example kubeflow-mcp policy file
+# Copy to ~/.kf-mcp-policy.yaml to use
+#
+# Policy files allow fine-grained access control beyond personas.
+# Use for enterprise deployments or custom tool restrictions.
+
+policy:
+  # Allow list - only these tools/categories are permitted
+  # Supports: tool names, category:name, wildcards (*)
+  allow:
+    - category:discovery   # All discovery tools
+    - category:monitoring  # All monitoring tools
+    - category:planning    # All planning tools
+    - fine_tune            # Specific tool
+    - run_custom_training  # Specific tool
+    # - "*"                # All tools (use with caution)
+
+  # Deny list - these are always blocked (overrides allow)
+  # Supports: tool names, risk:destructive, wildcards
+  deny:
+    - risk:destructive     # Block delete_training_job
+    # - delete_*           # Block all delete tools
+    # - run_container_*    # Block container training
+
+  # Namespace restrictions (optional)
+  # Only these namespaces can be accessed
+  namespaces:
+    - ml-team-dev
+    - ml-team-prod
+
+  # Read-only mode - blocks all write operations
+  read_only: false
+
+# Custom persona definitions
+# These extend or override built-in personas
+personas:
+  # Example: Data scientist with limited training access
+  data-scientist-restricted:
+    inherit: readonly
+    tools:
+      - estimate_resources
+      - fine_tune
+      # Note: no run_custom_training or delete
+
+  # Example: MLOps role with monitoring focus
+  mlops:
+    inherit: readonly
+    tools:
+      - wait_for_training
+      - suspend_training_job
+      - resume_training_job
+      # Note: no training submission tools

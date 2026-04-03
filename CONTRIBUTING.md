@@ -162,15 +162,42 @@ make benchmark
 2. **Create a branch**: `git checkout -b feature/my-feature`
 3. **Make changes** following the guidelines above
 4. **Run checks**: `make pre-commit`
-5. **Commit** with a descriptive message:
-   ```
-   feat: add support for distributed training metrics
-   
-   - Added get_training_metrics() tool
-   - Integrated with Kubeflow SDK metrics API
-   - Added unit tests
-   ```
+5. **Sign off** your commits (see DCO below)
 6. **Push** and create a Pull Request
+
+### Developer Certificate of Origin (DCO)
+
+All contributions must be signed off per the [DCO](https://developercertificate.org/):
+
+```bash
+# Sign off your commit
+git commit -s -m "feat: add new feature"
+
+# Or add sign-off to existing commit
+git commit --amend -s
+```
+
+This adds a `Signed-off-by: Your Name <your@email.com>` line to your commit message.
+
+### Apache 2.0 License Headers
+
+New source files must include the Apache 2.0 license header:
+
+```python
+# Copyright 2024 The Kubeflow Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+```
 
 ### Commit Message Format
 
@@ -182,6 +209,17 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 - `refactor:` Code refactoring
 - `test:` Adding tests
 - `chore:` Maintenance tasks
+
+Example with sign-off:
+```
+feat: add support for distributed training metrics
+
+- Added get_training_metrics() tool
+- Integrated with Kubeflow SDK metrics API
+- Added unit tests
+
+Signed-off-by: Jane Doe <jane@example.com>
+```
 
 ## Adding a New Client Module
 
@@ -206,10 +244,27 @@ CLIENT_MODULES = {
 your_client = ["kubeflow-your-client>=1.0"]
 ```
 
+## Good First Issues
+
+Looking for where to start? Check out issues labeled [`good first issue`](https://github.com/kubeflow/mcp-server/labels/good%20first%20issue):
+
+- Add new monitoring metrics tool
+- Improve error messages
+- Add more unit tests
+- Documentation improvements
+- Example scripts
+
+## Additional Documentation
+
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System design and module structure
+- [DEVELOPMENT.md](docs/DEVELOPMENT.md) - Detailed development guide
+- [ROADMAP.md](docs/ROADMAP.md) - Planned features
+- [SECURITY.md](SECURITY.md) - Security policy and vulnerability reporting
+
 ## Questions?
 
 - Open an issue for bugs or feature requests
-- Join the [Kubeflow Slack](https://kubeflow.slack.com) for discussions
+- Join the [Kubeflow Slack](https://kubeflow.slack.com) `#wg-training` for discussions
 - Check existing issues before creating new ones
 
 ## License

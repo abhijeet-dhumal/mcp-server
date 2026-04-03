@@ -1,0 +1,49 @@
+# Example kubeflow-mcp configuration file
+# Copy to ~/.kubeflow-mcp.yaml to use
+#
+# Configuration priority (highest to lowest):
+# 1. CLI arguments (--persona, --clients, etc.)
+# 2. Environment variables (KUBEFLOW_MCP_PERSONA, etc.)
+# 3. This config file
+# 4. Default values
+
+server:
+  # Client modules to load
+  # Options: trainer, optimizer (Phase 2), hub (Phase 3)
+  clients:
+    - trainer
+
+  # Persona for tool filtering
+  # Options: readonly, data-scientist, ml-engineer, platform-admin
+  persona: ml-engineer
+
+  # Restrict operations to specific namespaces (optional)
+  # namespaces:
+  #   - ml-team-dev
+  #   - ml-team-prod
+
+  # MCP transport protocol
+  # Options: stdio, http (StreamableHTTP)
+  transport: stdio
+
+# Trainer-specific settings
+trainer:
+  # Default runtime for training jobs (optional)
+  # default_runtime: torch-distributed
+
+  # Default namespace for training jobs (optional)
+  # default_namespace: kubeflow
+
+# Optimizer settings (Phase 2)
+optimizer:
+  default_algorithm: random
+  max_trials: 10
+
+# Logging configuration
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  level: INFO
+
+  # Log format: json (production) or console (development)
+  # Auto-detects if not specified
+  # format: json
