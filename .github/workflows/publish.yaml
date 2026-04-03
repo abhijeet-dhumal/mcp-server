@@ -8,7 +8,7 @@ on:
       test_pypi:
         description: 'Publish to Test PyPI instead'
         required: false
-        default: 'false'
+        default: false
         type: boolean
 
 jobs:
@@ -42,9 +42,10 @@ jobs:
 
   publish-test-pypi:
     needs: build
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.test_pypi == 'true'
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.test_pypi == true }}
     runs-on: ubuntu-latest
-    environment: test-pypi
+    environment:
+      name: test-pypi
     permissions:
       id-token: write
     steps:
@@ -61,9 +62,10 @@ jobs:
 
   publish-pypi:
     needs: build
-    if: github.event_name == 'release'
+    if: ${{ github.event_name == 'release' }}
     runs-on: ubuntu-latest
-    environment: pypi
+    environment:
+      name: pypi
     permissions:
       id-token: write
     steps:
@@ -75,3 +77,4 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
