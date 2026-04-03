@@ -77,8 +77,8 @@ class TestMemoryProfiling:
         current, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
 
-        print(f"\nMemory: current={current/1024:.1f}KB, peak={peak/1024:.1f}KB")
-        assert peak < 500 * 1024, f"Memory exceeded 500KB: {peak/1024:.1f}KB"
+        print(f"\nMemory: current={current / 1024:.1f}KB, peak={peak / 1024:.1f}KB")
+        assert peak < 500 * 1024, f"Memory exceeded 500KB: {peak / 1024:.1f}KB"
 
     def test_memory_tool_schemas(self):
         """Profile memory for generating all tool schemas."""
@@ -94,8 +94,7 @@ class TestMemoryProfiling:
                 "name": tool.__name__,
                 "description": (tool.__doc__ or "").split("\n")[0],
                 "parameters": {
-                    name: str(param.annotation)
-                    for name, param in sig.parameters.items()
+                    name: str(param.annotation) for name, param in sig.parameters.items()
                 },
             }
             schemas.append(json.dumps(schema))
@@ -103,5 +102,5 @@ class TestMemoryProfiling:
         current, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
 
-        print(f"\nSchema generation: {len(schemas)} schemas, {peak/1024:.1f}KB peak")
-        assert peak < 100 * 1024, f"Schema memory exceeded 100KB: {peak/1024:.1f}KB"
+        print(f"\nSchema generation: {len(schemas)} schemas, {peak / 1024:.1f}KB peak")
+        assert peak < 100 * 1024, f"Schema memory exceeded 100KB: {peak / 1024:.1f}KB"

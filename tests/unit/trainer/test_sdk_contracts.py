@@ -132,9 +132,7 @@ class TestSDKTypeInstantiation:
     def test_huggingface_model_initializer_validates_prefix(self):
         """Test that HuggingFaceModelInitializer validates hf:// prefix."""
         with pytest.raises(ValueError, match="must start with 'hf://'"):
-            sdk_types.HuggingFaceModelInitializer(
-                storage_uri="https://huggingface.co/model"
-            )
+            sdk_types.HuggingFaceModelInitializer(storage_uri="https://huggingface.co/model")
 
     def test_huggingface_dataset_initializer(self):
         """Test HuggingFaceDatasetInitializer with hf:// prefix."""
@@ -170,9 +168,7 @@ class TestSDKTypeInstantiation:
                 storage_uri="hf://google/gemma-2b",
                 access_token="token",
             ),
-            dataset=sdk_types.HuggingFaceDatasetInitializer(
-                storage_uri="hf://tatsu-lab/alpaca"
-            ),
+            dataset=sdk_types.HuggingFaceDatasetInitializer(storage_uri="hf://tatsu-lab/alpaca"),
         )
 
         assert init.model.storage_uri == "hf://google/gemma-2b"

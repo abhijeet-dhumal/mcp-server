@@ -16,7 +16,7 @@ from kubeflow_mcp.core.security import is_safe_python_code, validate_k8s_name
 # Import Kubeflow SDK types at module level to avoid import deadlocks
 # when tools are called in rapid succession
 try:
-    from kubeflow.trainer.options import (
+    from kubeflow.trainer.options import (  # type: ignore[attr-defined]
         ContainerPatch,
         JobSetSpecPatch,
         JobSetTemplatePatch,
@@ -290,7 +290,7 @@ os.system("""tune run lora_finetune_single_device \\
             def train_func():
                 exec(training_script)  # noqa: S102
 
-            trainer = CustomTrainer(
+            trainer = CustomTrainer(  # type: ignore[assignment]
                 func=train_func,
                 packages_to_install=[
                     "torchtune",

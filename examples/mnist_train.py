@@ -11,7 +11,7 @@ Usage with Kubeflow MCP agent:
 
 def train_mnist(num_epochs=3, batch_size=64, lr=0.01, momentum=0.9):
     """Train a CNN on MNIST with PyTorch distributed.
-    
+
     Args:
         num_epochs: Number of training epochs
         batch_size: Batch size per worker
@@ -30,7 +30,7 @@ def train_mnist(num_epochs=3, batch_size=64, lr=0.01, momentum=0.9):
     # Define the PyTorch CNN model
     class Net(nn.Module):
         def __init__(self):
-            super(Net, self).__init__()
+            super().__init__()
             self.conv1 = nn.Conv2d(1, 32, 3, 1)
             self.conv2 = nn.Conv2d(32, 64, 3, 1)
             self.dropout1 = nn.Dropout(0.25)
@@ -64,11 +64,11 @@ def train_mnist(num_epochs=3, batch_size=64, lr=0.01, momentum=0.9):
     # Create model and move to device
     device = torch.device(f"{device}:{local_rank}")
     model = Net().to(device)
-    
+
     # Use torch.compile for PyTorch 2.0+ optimization (GPU only)
     if torch.cuda.is_available():
         model = torch.compile(model)
-    
+
     model = nn.parallel.DistributedDataParallel(model)
     optimizer = torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum)
 
@@ -87,21 +87,16 @@ def train_mnist(num_epochs=3, batch_size=64, lr=0.01, momentum=0.9):
         "./data",
         train=True,
         download=False,
-        transform=transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.1307,), (0.3081,))
-        ]),
+        transform=transforms.Compose(
+            [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+        ),
     )
 
     # Shard dataset across workers
-    train_loader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        sampler=DistributedSampler(dataset)
-    )
+    train_loader = DataLoader(dataset, batch_size=batch_size, sampler=DistributedSampler(dataset))
 
     dist.barrier()
-    
+
     # Training loop
     for epoch in range(1, num_epochs + 1):
         model.train()
@@ -125,7 +120,7 @@ def train_mnist(num_epochs=3, batch_size=64, lr=0.01, momentum=0.9):
                 )
 
     dist.barrier()
-    
+
     if dist.get_rank() == 0:
         print("Training complete!")
         # Save model on rank 0

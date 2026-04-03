@@ -88,9 +88,7 @@ class TestListTrainingJobs:
     def test_list_jobs_with_limit(self, mock_get_client):
         """Test limiting job count."""
         mock_client = MagicMock()
-        mock_client.list_jobs.return_value = [
-            MockTrainJob(name=f"job-{i}") for i in range(100)
-        ]
+        mock_client.list_jobs.return_value = [MockTrainJob(name=f"job-{i}") for i in range(100)]
         mock_get_client.return_value = mock_client
 
         result = list_training_jobs(limit=10)

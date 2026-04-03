@@ -245,7 +245,9 @@ class OllamaAgent:
         # Force agent recreation with new tools
         self._agent = None
         self._tools = None
-        self._ensure_agent(with_thinking=self._use_thinking and self._thinking_supported is not False)
+        self._ensure_agent(
+            with_thinking=self._use_thinking and self._thinking_supported is not False
+        )
 
         return len(self._tools) if self._tools else 0
 
@@ -450,7 +452,9 @@ def run_chat(
     welcome.add_row()
     welcome.add_row(Text("Commands:", style="bright_yellow"))
     welcome.add_row(Text("  /tools       - List available tools", style="white"))
-    welcome.add_row(Text("  /mode        - Switch tool mode (static/progressive/semantic)", style="white"))
+    welcome.add_row(
+        Text("  /mode        - Switch tool mode (static/progressive/semantic)", style="white")
+    )
     welcome.add_row(Text("  /think       - Toggle thinking output", style="white"))
     welcome.add_row(Text("  /file <path> - Read file and analyze it", style="white"))
     welcome.add_row(Text("  /clear       - Clear conversation memory", style="white"))
@@ -564,14 +568,18 @@ def run_chat(
                     console.print("\n[bold]Available modes:[/bold]")
                     for mode_name, mode_desc in TOOL_MODES.items():
                         marker = "→" if mode_name == agent.tool_mode else " "
-                        console.print(f"  {marker} [bright_cyan]{mode_name}[/bright_cyan]: {mode_desc}")
+                        console.print(
+                            f"  {marker} [bright_cyan]{mode_name}[/bright_cyan]: {mode_desc}"
+                        )
                     console.print("\n[dim]Usage: /mode <name>[/dim]")
                 else:
                     new_mode = parts[1].lower()
                     try:
                         console.print(f"[bright_cyan]Switching to {new_mode} mode...[/bright_cyan]")
                         num_tools = agent.set_mode(new_mode)
-                        console.print(f"[bright_green]✓ Switched to {new_mode} ({num_tools} tools)[/bright_green]")
+                        console.print(
+                            f"[bright_green]✓ Switched to {new_mode} ({num_tools} tools)[/bright_green]"
+                        )
                     except ValueError as e:
                         console.print(f"[bright_red]✗ {e}[/bright_red]")
                 continue
@@ -605,11 +613,20 @@ def run_chat(
 
                     content = path.read_text()
                     lines = len(content.splitlines())
-                    console.print(f"[bright_green]✓ Read {path.name} ({lines} lines)[/bright_green]")
+                    console.print(
+                        f"[bright_green]✓ Read {path.name} ({lines} lines)[/bright_green]"
+                    )
 
                     # Detect file type for syntax highlighting
                     ext = path.suffix.lower()
-                    lang = {"py": "python", "js": "javascript", "ts": "typescript", "yaml": "yaml", "yml": "yaml", "json": "json"}.get(ext.lstrip("."), "")
+                    lang = {
+                        "py": "python",
+                        "js": "javascript",
+                        "ts": "typescript",
+                        "yaml": "yaml",
+                        "yml": "yaml",
+                        "json": "json",
+                    }.get(ext.lstrip("."), "")
 
                     # Include file content in next message
                     user_input = f"Here is the contents of `{path.name}`:\n\n```{lang}\n{content}\n```\n\nPlease analyze this file and tell me what it does."
@@ -723,7 +740,9 @@ def run_chat(
             # Notify user if thinking is available (but don't auto-enable - keeps output clean)
             if agent._thinking_supported is True and not hasattr(agent, "_thinking_notified"):
                 agent._thinking_notified = True  # type: ignore[attr-defined]
-                console.print("[dim]💭 Thinking supported. Use /think to see model reasoning.[/dim]")
+                console.print(
+                    "[dim]💭 Thinking supported. Use /think to see model reasoning.[/dim]"
+                )
 
             # Newline after thinking
             if thinking_buffer:
@@ -742,10 +761,13 @@ def run_chat(
                 )
 
         except KeyboardInterrupt:
-            console.print("\n[yellow]Interrupted. Press Ctrl+C again to quit, or continue typing.[/yellow]")
+            console.print(
+                "\n[yellow]Interrupted. Press Ctrl+C again to quit, or continue typing.[/yellow]"
+            )
             try:
                 # Wait briefly for another Ctrl+C
                 import time
+
                 time.sleep(0.5)
             except KeyboardInterrupt:
                 agent.close()

@@ -41,11 +41,13 @@ class TestGetTrainingLogs:
     def test_get_logs_success(self, mock_get_client):
         """Test getting logs from a job."""
         mock_client = MagicMock()
-        mock_client.get_job_logs.return_value = iter([
-            "Epoch 1/3: loss=2.34",
-            "Epoch 2/3: loss=1.89",
-            "Epoch 3/3: loss=1.45",
-        ])
+        mock_client.get_job_logs.return_value = iter(
+            [
+                "Epoch 1/3: loss=2.34",
+                "Epoch 2/3: loss=1.89",
+                "Epoch 3/3: loss=1.45",
+            ]
+        )
         mock_get_client.return_value = mock_client
 
         result = get_training_logs(name="my-job")
@@ -55,9 +57,7 @@ class TestGetTrainingLogs:
         assert result["data"]["step"] == "node-0"
         assert "Epoch 1/3" in result["data"]["logs"]
         assert result["data"]["lines"] == 3
-        mock_client.get_job_logs.assert_called_once_with(
-            name="my-job", step="node-0", follow=False
-        )
+        mock_client.get_job_logs.assert_called_once_with(name="my-job", step="node-0", follow=False)
 
     @patch("kubeflow_mcp.trainer.api.monitoring.get_trainer_client")
     def test_get_logs_custom_step(self, mock_get_client):
@@ -103,10 +103,12 @@ class TestGetTrainingLogs:
     def test_get_logs_sanitizes_output(self, mock_get_client):
         """Test that sensitive data is sanitized from logs."""
         mock_client = MagicMock()
-        mock_client.get_job_logs.return_value = iter([
-            "Loading model with token hf_abcdefghijklmnop",
-            "Training started",
-        ])
+        mock_client.get_job_logs.return_value = iter(
+            [
+                "Loading model with token hf_abcdefghijklmnop",
+                "Training started",
+            ]
+        )
         mock_get_client.return_value = mock_client
 
         result = get_training_logs(name="my-job")
@@ -227,9 +229,7 @@ class TestWaitForTraining:
     def test_wait_custom_status(self, mock_get_client):
         """Test waiting for custom status."""
         mock_client = MagicMock()
-        mock_client.wait_for_job_status.return_value = MockTrainJob(
-            name="my-job", status="Failed"
-        )
+        mock_client.wait_for_job_status.return_value = MockTrainJob(name="my-job", status="Failed")
         mock_get_client.return_value = mock_client
 
         result = wait_for_training(name="my-job", target_status="Failed")

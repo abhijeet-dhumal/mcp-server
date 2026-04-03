@@ -132,7 +132,7 @@ def agent(backend: str, model: str, mode: str, thinking: bool) -> None:
         except ImportError:
             click.echo("Error: Agent dependencies not installed.", err=True)
             click.echo("Install with: pip install kubeflow-mcp[agents]", err=True)
-            raise SystemExit(1)
+            raise SystemExit(1) from None
 
         import sys
 

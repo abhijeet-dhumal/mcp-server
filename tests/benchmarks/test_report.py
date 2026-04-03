@@ -74,7 +74,7 @@ def measure_latency(func, iterations: int = 100, warmup: int = 10) -> dict:
         "p50": times_sorted[n // 2],
         "p95": times_sorted[int(n * 0.95)],
         "p99": times_sorted[int(n * 0.99)],
-        "ci95": 1.96 * std / (n ** 0.5),  # 95% confidence interval
+        "ci95": 1.96 * std / (n**0.5),  # 95% confidence interval
         "iterations": n,
     }
 
@@ -98,10 +98,7 @@ def get_tool_schema_json(func) -> str:
     schema = {
         "name": func.__name__,
         "description": (func.__doc__ or "").split("\n")[0].strip(),
-        "parameters": {
-            name: str(param.annotation)
-            for name, param in sig.parameters.items()
-        },
+        "parameters": {name: str(param.annotation) for name, param in sig.parameters.items()},
     }
     return json.dumps(schema, separators=(",", ":"))
 
@@ -153,7 +150,10 @@ class TestBenchmarkReport:
         instructions_tokens = count_tokens(SERVER_INSTRUCTIONS)
 
         # Category breakdown
-        category_tokens = {cat: sum(tool_tokens[t.__name__] for t in tools) for cat, tools in TOOL_CATEGORIES.items()}
+        category_tokens = {
+            cat: sum(tool_tokens[t.__name__] for t in tools)
+            for cat, tools in TOOL_CATEGORIES.items()
+        }
 
         metrics["token_usage"] = {
             "tokenizer": "cl100k_base (GPT-4)",
@@ -190,7 +190,9 @@ class TestBenchmarkReport:
         metrics["memory"]["server_kb"] = {
             "current_mean": statistics.mean(s["current"] for s in memory_samples),
             "peak_mean": statistics.mean(s["peak"] for s in memory_samples),
-            "peak_std": statistics.stdev(s["peak"] for s in memory_samples) if len(memory_samples) > 1 else 0,
+            "peak_std": statistics.stdev(s["peak"] for s in memory_samples)
+            if len(memory_samples) > 1
+            else 0,
             "samples": len(memory_samples),
         }
 
@@ -214,7 +216,9 @@ class TestBenchmarkReport:
         mode_vals = [m[1] for m in mode_data]
         mode_colors = [m[2] for m in mode_data]
 
-        bars = ax1.barh(range(len(mode_names)), mode_vals, color=mode_colors, height=0.6, edgecolor="black")
+        bars = ax1.barh(
+            range(len(mode_names)), mode_vals, color=mode_colors, height=0.6, edgecolor="black"
+        )
         ax1.set_yticks(range(len(mode_names)))
         ax1.set_yticklabels(mode_names, fontsize=11)
         ax1.set_xlabel("Tokens (GPT-4 cl100k_base)", fontsize=10)
@@ -223,15 +227,24 @@ class TestBenchmarkReport:
         ax1.set_xlim(0, static_tokens * 1.35)
 
         for i, (bar, val) in enumerate(zip(bars, mode_vals, strict=True)):
-            reduction = f" (-{(1-val/static_tokens)*100:.0f}%)" if i > 0 else " (baseline)"
-            ax1.text(val + 10, bar.get_y() + bar.get_height() / 2, f"{val}{reduction}", va="center", fontsize=10, fontweight="bold")
+            reduction = f" (-{(1 - val / static_tokens) * 100:.0f}%)" if i > 0 else " (baseline)"
+            ax1.text(
+                val + 10,
+                bar.get_y() + bar.get_height() / 2,
+                f"{val}{reduction}",
+                va="center",
+                fontsize=10,
+                fontweight="bold",
+            )
 
         # ===== CHART 2: Top Tools by Token Usage (top-right) =====
         ax2 = axes[0, 1]
         tools_sorted = sorted(tool_tokens.items(), key=lambda x: x[1], reverse=True)[:10]
         short_names = [shorten_tool_name(t[0]) for t in tools_sorted]
         values = [t[1] for t in tools_sorted]
-        colors = plt.cm.Blues([(v - min(values)) / (max(values) - min(values) + 1) * 0.5 + 0.4 for v in values])
+        colors = plt.cm.Blues(
+            [(v - min(values)) / (max(values) - min(values) + 1) * 0.5 + 0.4 for v in values]
+        )
 
         bars = ax2.barh(range(len(short_names)), values, color=colors, height=0.7)
         ax2.set_yticks(range(len(short_names)))
@@ -273,10 +286,26 @@ class TestBenchmarkReport:
         summary = [
             ["Category", "Metric", "Value"],
             ["Tokens", "Static (16 tools)", f"{static_tokens}"],
-            ["", "Progressive (3 meta)", f"{progressive_tokens} (-{(1-progressive_tokens/static_tokens)*100:.0f}%)"],
-            ["", "Semantic (2 meta)", f"{semantic_tokens} (-{(1-semantic_tokens/static_tokens)*100:.0f}%)"],
-            ["Latency", "Server Init", f"{server_lat['mean']:.2f} ± {server_lat['ci95']:.2f} ms (n={server_lat['iterations']})"],
-            ["Memory", "Peak", f"{mem['peak_mean']:.1f} ± {mem['peak_std']:.1f} KB (n={mem['samples']})"],
+            [
+                "",
+                "Progressive (3 meta)",
+                f"{progressive_tokens} (-{(1 - progressive_tokens / static_tokens) * 100:.0f}%)",
+            ],
+            [
+                "",
+                "Semantic (2 meta)",
+                f"{semantic_tokens} (-{(1 - semantic_tokens / static_tokens) * 100:.0f}%)",
+            ],
+            [
+                "Latency",
+                "Server Init",
+                f"{server_lat['mean']:.2f} ± {server_lat['ci95']:.2f} ms (n={server_lat['iterations']})",
+            ],
+            [
+                "Memory",
+                "Peak",
+                f"{mem['peak_mean']:.1f} ± {mem['peak_std']:.1f} KB (n={mem['samples']})",
+            ],
             ["Env", "System", f"Py {env['python']} / {env['os']} {env['machine']}"],
         ]
 
@@ -312,15 +341,23 @@ class TestBenchmarkReport:
         with open(json_path, "w") as f:
             json.dump(metrics, f, indent=2)
 
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print("BENCHMARK REPORT GENERATED")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print(f"Chart: {chart_path}")
         print(f"Data:  {json_path}")
         print(f"\nEnvironment: Python {env['python']} on {env['os']} {env['machine']}")
         print("\nToken Usage (GPT-4 cl100k_base tokenizer):")
         print(f"  Static:      {static_tokens:4d} tokens (baseline)")
-        print(f"  Progressive: {progressive_tokens:4d} tokens (-{(1-progressive_tokens/static_tokens)*100:.0f}%)")
-        print(f"  Semantic:    {semantic_tokens:4d} tokens (-{(1-semantic_tokens/static_tokens)*100:.0f}%)")
-        print(f"\nServer Init Latency: {server_lat['mean']:.2f}ms ± {server_lat['ci95']:.2f}ms (n={server_lat['iterations']})")
-        print(f"Memory Peak: {mem['peak_mean']:.1f} KB ± {mem['peak_std']:.1f} KB (n={mem['samples']})")
+        print(
+            f"  Progressive: {progressive_tokens:4d} tokens (-{(1 - progressive_tokens / static_tokens) * 100:.0f}%)"
+        )
+        print(
+            f"  Semantic:    {semantic_tokens:4d} tokens (-{(1 - semantic_tokens / static_tokens) * 100:.0f}%)"
+        )
+        print(
+            f"\nServer Init Latency: {server_lat['mean']:.2f}ms ± {server_lat['ci95']:.2f}ms (n={server_lat['iterations']})"
+        )
+        print(
+            f"Memory Peak: {mem['peak_mean']:.1f} KB ± {mem['peak_std']:.1f} KB (n={mem['samples']})"
+        )

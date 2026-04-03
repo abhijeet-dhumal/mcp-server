@@ -106,9 +106,7 @@ def list_tools(prefix: str = "") -> dict[str, Any]:
         tools = TOOL_HIERARCHY[prefix]
         return {
             "category": prefix,
-            "tools": [
-                {"name": t, "description": TOOL_REGISTRY[t]["description"]} for t in tools
-            ],
+            "tools": [{"name": t, "description": TOOL_REGISTRY[t]["description"]} for t in tools],
             "hint": "Use describe_tools(['tool_name']) to get full schema",
         }
 
@@ -176,7 +174,7 @@ def describe_tools(tool_names: list[str]) -> dict[str, Any]:
 
 def _format_friendly_error(result: dict[str, Any]) -> dict[str, Any]:
     """Convert technical errors to user-friendly messages."""
-    if not result.get("success") is False:
+    if result.get("success") is not False:
         return result
 
     error = result.get("error", "")
@@ -297,11 +295,26 @@ def find_tools(query: str, top_k: int = 5) -> dict[str, Any]:
     # Special case: list all tools
     query_lower = query.strip().lower()
     list_all_patterns = (
-        "*", "all", "list", "list all", "all tools", "available tools",
-        "what tools", "show tools", "show all", "every tool", "everything",
-        "available", "what's available", "whats available",
+        "*",
+        "all",
+        "list",
+        "list all",
+        "all tools",
+        "available tools",
+        "what tools",
+        "show tools",
+        "show all",
+        "every tool",
+        "everything",
+        "available",
+        "what's available",
+        "whats available",
     )
-    if query_lower in list_all_patterns or "all tool" in query_lower or "available tool" in query_lower:
+    if (
+        query_lower in list_all_patterns
+        or "all tool" in query_lower
+        or "available tool" in query_lower
+    ):
         return {
             "query": query,
             "total": len(TOOL_REGISTRY),
@@ -412,7 +425,7 @@ def get_dynamic_system_prompt(mode: str = "progressive") -> str:
 
 When greeted, introduce yourself briefly and offer these options:
 - Check cluster resources (GPUs, nodes)
-- Fine-tune a model (e.g., Llama, Gemma)  
+- Fine-tune a model (e.g., Llama, Gemma)
 - List training jobs or runtimes
 - Monitor a running job
 
@@ -421,7 +434,7 @@ IMPORTANT: When user asks "what tools are available" or similar, call find_tools
 When the user asks to train, fine-tune, or work with models:
 1. find_tools("check cluster") → execute get_cluster_resources
 2. find_tools("estimate") → execute estimate_resources (model ID like "google/gemma-2b")
-3. find_tools("runtimes") → execute list_runtimes  
+3. find_tools("runtimes") → execute list_runtimes
 4. find_tools("fine-tune") → execute fine_tune(confirmed=False) → show preview
 5. Wait for user confirmation before submitting
 

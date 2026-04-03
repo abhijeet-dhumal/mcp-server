@@ -82,8 +82,7 @@ class TestToolSchemaGenerationLatency:
                 "name": tool.__name__,
                 "description": (tool.__doc__ or "").split("\n")[0],
                 "parameters": {
-                    name: str(param.annotation)
-                    for name, param in sig.parameters.items()
+                    name: str(param.annotation) for name, param in sig.parameters.items()
                 },
             }
 
@@ -96,10 +95,12 @@ class TestToolSchemaGenerationLatency:
         def generate_all_schemas():
             schemas = []
             for tool in TOOLS:
-                schemas.append({
-                    "name": tool.__name__,
-                    "description": (tool.__doc__ or "").split("\n")[0],
-                })
+                schemas.append(
+                    {
+                        "name": tool.__name__,
+                        "description": (tool.__doc__ or "").split("\n")[0],
+                    }
+                )
             return schemas
 
         result = benchmark(generate_all_schemas)
@@ -219,9 +220,9 @@ class TestLatencySummary:
         # This test runs last and collects results from pytest-benchmark
         # The actual percentile data comes from pytest-benchmark's JSON output
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("LATENCY BENCHMARK COMPLETE")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Commit: {benchmark_metadata['commit']}")
         print("\nRun with --benchmark-json=results.json to save detailed results")
         print("Run with --benchmark-compare to compare against baseline")

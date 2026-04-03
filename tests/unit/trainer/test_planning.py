@@ -113,7 +113,10 @@ class TestEstimateResources:
         assert result["data"]["params_billions"] == 2.0
         assert result["data"]["gpu_per_worker"] == 1
         # 2B params with LoRA bf16 should need ~10GB
-        assert "8GB" in result["data"]["gpu_type_recommended"] or "16GB" in result["data"]["gpu_type_recommended"]
+        assert (
+            "8GB" in result["data"]["gpu_type_recommended"]
+            or "16GB" in result["data"]["gpu_type_recommended"]
+        )
 
     @patch("kubeflow_mcp.trainer.api.planning._get_model_info_from_hf")
     def test_estimate_large_model(self, mock_hf_info):

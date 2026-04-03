@@ -88,9 +88,7 @@ class TestFineTune:
     @patch("kubeflow_mcp.trainer.api.training.get_trainer_client")
     @patch("kubeflow_mcp.trainer.api.training.BuiltinTrainer")
     @patch("kubeflow_mcp.trainer.api.training.Initializer")
-    def test_submit_builtin_trainer(
-        self, mock_initializer, mock_trainer, mock_get_client
-    ):
+    def test_submit_builtin_trainer(self, mock_initializer, mock_trainer, mock_get_client):
         """Test successful job submission with BuiltinTrainer."""
         mock_client = MagicMock()
         mock_client.train.return_value = "trainjob-abc123"

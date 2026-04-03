@@ -95,9 +95,9 @@ class TestTokenUsageByMode:
             tool_tokens[tool.__name__] = tokens
             total_tokens += tokens
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"STATIC MODE: {len(tools)} tools, {total_tokens} tokens")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         for name, tokens in sorted(tool_tokens.items(), key=lambda x: -x[1]):
             print(f"  {name}: {tokens} tokens")
 
@@ -118,9 +118,9 @@ class TestTokenUsageByMode:
             tool_tokens[tool.__name__] = tokens
             total_tokens += tokens
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"CORE MODE: {len(tools)} tools, {total_tokens} tokens")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         for name, tokens in sorted(tool_tokens.items(), key=lambda x: -x[1]):
             print(f"  {name}: {tokens} tokens")
 
@@ -130,9 +130,7 @@ class TestTokenUsageByMode:
     def test_planning_category_tools(self):
         """Measure tokens for planning category."""
         tools = TOOL_CATEGORIES.get("planning", [])
-        total_tokens = sum(
-            count_tokens(schema_to_json(get_tool_schema(t))) for t in tools
-        )
+        total_tokens = sum(count_tokens(schema_to_json(get_tool_schema(t))) for t in tools)
 
         print(f"\nPLANNING: {len(tools)} tools, {total_tokens} tokens")
         assert total_tokens < 500
@@ -140,9 +138,7 @@ class TestTokenUsageByMode:
     def test_training_category_tools(self):
         """Measure tokens for training category."""
         tools = TOOL_CATEGORIES.get("training", [])
-        total_tokens = sum(
-            count_tokens(schema_to_json(get_tool_schema(t))) for t in tools
-        )
+        total_tokens = sum(count_tokens(schema_to_json(get_tool_schema(t))) for t in tools)
 
         print(f"\nTRAINING: {len(tools)} tools, {total_tokens} tokens")
         assert total_tokens < 800
@@ -150,9 +146,7 @@ class TestTokenUsageByMode:
     def test_discovery_category_tools(self):
         """Measure tokens for discovery category."""
         tools = TOOL_CATEGORIES.get("discovery", [])
-        total_tokens = sum(
-            count_tokens(schema_to_json(get_tool_schema(t))) for t in tools
-        )
+        total_tokens = sum(count_tokens(schema_to_json(get_tool_schema(t))) for t in tools)
 
         print(f"\nDISCOVERY: {len(tools)} tools, {total_tokens} tokens")
         assert total_tokens < 600
@@ -160,9 +154,7 @@ class TestTokenUsageByMode:
     def test_monitoring_category_tools(self):
         """Measure tokens for monitoring category."""
         tools = TOOL_CATEGORIES.get("monitoring", [])
-        total_tokens = sum(
-            count_tokens(schema_to_json(get_tool_schema(t))) for t in tools
-        )
+        total_tokens = sum(count_tokens(schema_to_json(get_tool_schema(t))) for t in tools)
 
         print(f"\nMONITORING: {len(tools)} tools, {total_tokens} tokens")
         assert total_tokens < 500
@@ -170,9 +162,7 @@ class TestTokenUsageByMode:
     def test_lifecycle_category_tools(self):
         """Measure tokens for lifecycle category."""
         tools = TOOL_CATEGORIES.get("lifecycle", [])
-        total_tokens = sum(
-            count_tokens(schema_to_json(get_tool_schema(t))) for t in tools
-        )
+        total_tokens = sum(count_tokens(schema_to_json(get_tool_schema(t))) for t in tools)
 
         print(f"\nLIFECYCLE: {len(tools)} tools, {total_tokens} tokens")
         assert total_tokens < 500

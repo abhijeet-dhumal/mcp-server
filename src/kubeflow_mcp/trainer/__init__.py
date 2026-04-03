@@ -123,7 +123,7 @@ def get_tools(categories: list[str] | None = None) -> list:
     tools = []
     seen = set()
     for cat in categories:
-        for tool in TOOL_CATEGORIES.get(cat, []):
+        for tool in TOOL_CATEGORIES.get(cat, []):  # type: ignore[attr-defined]
             if tool.__name__ not in seen:
                 tools.append(tool)
                 seen.add(tool.__name__)

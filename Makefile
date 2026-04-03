@@ -50,47 +50,56 @@ install:
 	uv sync --extra trainer
 
 dev:
-	uv sync --extra dev --extra trainer --extra benchmark
+	uv sync --extra dev --extra trainer --extra benchmark --extra agents
 
 install-agents:
 	uv sync --extra trainer --extra agents
 
-# Server
+# Server (auto-installs trainer deps)
 serve:
+	@uv sync --extra trainer --quiet
 	uv run kubeflow-mcp serve
 
 serve-debug:
+	@uv sync --extra trainer --quiet
 	uv run kubeflow-mcp serve --log-level DEBUG
 
 serve-http:
+	@uv sync --extra trainer --quiet
 	@echo "Starting MCP server with streamable-http transport..."
-	@echo "Connect via HTTP POST to the server endpoint"
 	uv run kubeflow-mcp serve --transport http
 
 status:
+	@uv sync --extra trainer --quiet
 	uv run kubeflow-mcp status
 
-# Agent (requires Ollama running at localhost:11434)
+# Agent (auto-installs agents deps, requires Ollama at localhost:11434)
 OLLAMA_MODEL ?= qwen2.5:7b
 
 agent:
+	@uv sync --extra trainer --extra agents --quiet
 	uv run python -m kubeflow_mcp.agents.ollama --model $(OLLAMA_MODEL) --mode static
 
 agent-progressive:
+	@uv sync --extra trainer --extra agents --quiet
 	uv run python -m kubeflow_mcp.agents.ollama --model $(OLLAMA_MODEL) --mode progressive
 
 agent-semantic:
+	@uv sync --extra trainer --extra agents --quiet
 	uv run python -m kubeflow_mcp.agents.ollama --model $(OLLAMA_MODEL) --mode semantic
 
-# Quality checks
+# Quality checks (auto-installs dev deps)
 lint:
+	@uv sync --extra dev --quiet
 	uv run ruff check .
 
 format:
+	@uv sync --extra dev --quiet
 	uv run ruff check --fix .
 	uv run ruff format .
 
 typecheck:
+	@uv sync --extra dev --extra trainer --quiet
 	uv run mypy src/kubeflow_mcp --ignore-missing-imports
 
 check: lint typecheck
@@ -98,22 +107,27 @@ check: lint typecheck
 pre-commit: format check test-unit
 	@echo "All checks passed - ready to commit"
 
-# Testing
+# Testing (auto-installs dev + trainer deps)
 test:
+	@uv sync --extra dev --extra trainer --quiet
 	uv run pytest tests/ -v --tb=short
 
 test-unit:
+	@uv sync --extra dev --extra trainer --quiet
 	uv run pytest tests/unit/ -v --tb=short
 
 test-bench:
+	@uv sync --extra dev --extra trainer --extra benchmark --quiet
 	uv run pytest tests/benchmarks/ -v --tb=short
 
 test-cov:
+	@uv sync --extra dev --extra trainer --quiet
 	uv run pytest tests/unit/ --cov=kubeflow_mcp --cov-report=term-missing --cov-report=html
 	@echo "Coverage report: htmlcov/index.html"
 
-# Benchmarks
+# Benchmarks (auto-installs benchmark deps)
 benchmark:
+	@uv sync --extra benchmark --extra trainer --quiet
 	@echo "Generating benchmark dashboard..."
 	uv run pytest tests/benchmarks/test_report.py -v -s
 	@echo ""
