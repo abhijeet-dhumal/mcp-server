@@ -1,3 +1,10 @@
+---
+name: Troubleshooting Training Jobs
+description: Guide for diagnosing and resolving common training job failures
+globs:
+  - "src/kubeflow_mcp/trainer/api/*.py"
+---
+
 # Troubleshooting Training Jobs
 
 Guide for diagnosing and resolving common training job failures.

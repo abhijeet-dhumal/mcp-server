@@ -1,3 +1,10 @@
+---
+name: Fine-Tuning LLMs
+description: Guide for fine-tuning HuggingFace models with LoRA using the fine_tune() tool
+globs:
+  - "src/kubeflow_mcp/trainer/api/training.py"
+---
+
 # Fine-Tuning LLMs with Kubeflow
 
 Detailed guide for fine-tuning models using the `fine_tune()` tool. Wraps the Kubeflow SDK's `TrainerClient.train()` with `BuiltinTrainer` (TorchTune).

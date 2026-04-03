@@ -1,3 +1,11 @@
+---
+name: Kubeflow Trainer
+description: AI-powered interface for distributed training and LLM fine-tuning on Kubernetes
+globs:
+  - "src/kubeflow_mcp/trainer/**/*.py"
+  - "tests/**/trainer/**/*.py"
+---
+
 # Kubeflow Trainer Skill
 
 AI-powered interface for distributed training and LLM fine-tuning on Kubernetes.

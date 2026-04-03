@@ -1,3 +1,10 @@
+---
+name: Custom Training Scripts
+description: Guide for running Python scripts and container images with CustomTrainer
+globs:
+  - "src/kubeflow_mcp/trainer/api/training.py"
+---
+
 # Custom Training Scripts
 
 Guide for running user-provided Python training scripts with `run_custom_training()` and container images with `run_container_training()`.
