@@ -22,6 +22,126 @@ CLIENT_MODULES = {
     "hub": "kubeflow_mcp.hub",
 }
 
+# Tool annotations for MCP clients
+# See: https://spec.modelcontextprotocol.io/specification/2025-03-26/server/tools/#annotations
+TOOL_ANNOTATIONS: dict[str, dict] = {
+    # Read-only tools (no side effects, safe to call repeatedly)
+    "get_cluster_resources": {
+        "title": "Get Cluster Resources",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+    "estimate_resources": {
+        "title": "Estimate Training Resources",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+    "list_training_jobs": {
+        "title": "List Training Jobs",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+    "get_training_job": {
+        "title": "Get Training Job Details",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+    "list_runtimes": {
+        "title": "List Training Runtimes",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+    "get_runtime": {
+        "title": "Get Runtime Details",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+    "get_runtime_packages": {
+        "title": "Get Runtime Packages",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+    "get_training_logs": {
+        "title": "Get Training Logs",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+    "get_training_events": {
+        "title": "Get Training Events",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+    "wait_for_training": {
+        "title": "Wait for Training Completion",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+    # Training tools (create resources, not destructive)
+    "fine_tune": {
+        "title": "Fine-tune Model",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
+    "run_custom_training": {
+        "title": "Run Custom Training Script",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
+    "run_container_training": {
+        "title": "Run Container Training",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
+    # Lifecycle tools
+    "delete_training_job": {
+        "title": "Delete Training Job",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+    "suspend_training_job": {
+        "title": "Suspend Training Job",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+    "resume_training_job": {
+        "title": "Resume Training Job",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+}
+
 SERVER_INSTRUCTIONS = """
 Kubeflow MCP Server - AI Model Training on Kubernetes
 
@@ -100,7 +220,12 @@ def create_server(
                 tool_name = tool_func.__name__
 
                 if allowed_tools is None or tool_name in allowed_tools:
-                    mcp.tool()(tool_func)
+                    # Get annotations for this tool (if defined)
+                    annotations = TOOL_ANNOTATIONS.get(tool_name)
+                    if annotations:
+                        mcp.tool(annotations=annotations)(tool_func)
+                    else:
+                        mcp.tool()(tool_func)
                     registered += 1
                     logger.debug(f"Registered tool: {tool_name}")
 

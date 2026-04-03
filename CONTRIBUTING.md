@@ -1,83 +1,217 @@
 # Contributing to Kubeflow MCP Server
 
-Thank you for your interest in contributing!
+Thank you for your interest in contributing! This guide will help you get started.
 
-## Getting Started
+## Development Setup
 
-1. Fork the repository
-2. Clone your fork:
-   ```bash
-   git clone https://github.com/<your-username>/mcp-server.git
-   cd mcp-server
-   ```
-
-3. Set up development environment:
-   ```bash
-   uv sync --all-extras
-   uv run pre-commit install
-   ```
-
-4. Create a branch:
-   ```bash
-   git checkout -b feat/your-feature
-   ```
-
-## Development Workflow
-
-### Running Tests
 ```bash
-uv run pytest                    # All tests
-uv run pytest tests/unit         # Unit tests only
-uv run pytest -k "test_name"     # Specific test
+# Clone the repository
+git clone https://github.com/kubeflow/mcp-server.git
+cd mcp-server
+
+# Install all dependencies (requires uv)
+make dev
+
+# Verify setup
+make check
 ```
 
-### Linting
+## Project Structure
+
+```
+src/kubeflow_mcp/
+├── core/           # Server infrastructure
+│   ├── server.py   # MCP server factory
+│   ├── policy.py   # Persona-based access control
+│   └── health.py   # Health check tools
+├── trainer/        # Kubeflow Training tools
+│   ├── api/        # Tool implementations
+│   │   ├── planning.py    # Resource estimation
+│   │   ├── training.py    # Job submission
+│   │   ├── discovery.py   # Job/runtime listing
+│   │   ├── monitoring.py  # Logs and events
+│   │   └── lifecycle.py   # Suspend/resume/delete
+│   └── skills/     # AI context documents
+├── agents/         # Local agent implementations
+│   ├── ollama.py   # Ollama-based agent
+│   └── dynamic_tools.py  # Progressive/semantic modes
+└── cli.py          # Command-line interface
+```
+
+## Adding a New Tool
+
+1. **Choose the right module** based on tool category:
+   - `planning.py` - Resource checks, estimations
+   - `training.py` - Job submission
+   - `discovery.py` - Listing resources
+   - `monitoring.py` - Logs, events, status
+   - `lifecycle.py` - Suspend, resume, delete
+
+2. **Implement the tool function**:
+
+```python
+def my_new_tool(param1: str, param2: int = 10) -> dict[str, Any]:
+    """Short description for AI context.
+
+    Args:
+        param1: Description of param1
+        param2: Description with default
+
+    Returns:
+        Dict with 'success' and result or 'error'
+    """
+    try:
+        # Implementation using Kubeflow SDK
+        client = get_trainer_client()
+        result = client.some_method(param1, param2)
+        return {"success": True, "data": result}
+    except Exception as e:
+        return ToolError(
+            error=str(e),
+            error_code="SDK_ERROR",
+        ).model_dump()
+```
+
+3. **Register the tool** in `trainer/__init__.py`:
+
+```python
+from kubeflow_mcp.trainer.api.your_module import my_new_tool
+
+TOOLS = [
+    # ... existing tools
+    my_new_tool,
+]
+
+TOOL_CATEGORIES = {
+    "your_category": [my_new_tool],
+}
+```
+
+4. **Add tool annotations** in `core/server.py`:
+
+```python
+TOOL_ANNOTATIONS = {
+    "my_new_tool": {
+        "title": "My New Tool",
+        "readOnlyHint": True,  # Does it only read?
+        "destructiveHint": False,  # Can it delete things?
+        "idempotentHint": True,  # Safe to call repeatedly?
+        "openWorldHint": True,  # Interacts with external systems?
+    },
+}
+```
+
+5. **Add tests** in `tests/unit/trainer/`:
+
+```python
+class TestMyNewTool:
+    def test_success(self, mock_client):
+        mock_client.some_method.return_value = expected
+        result = my_new_tool("value")
+        assert result["success"] is True
+        
+    def test_error_handling(self, mock_client):
+        mock_client.some_method.side_effect = Exception("Failed")
+        result = my_new_tool("value")
+        assert result["success"] is False
+```
+
+## Code Quality
+
+Run these before submitting:
+
 ```bash
-uv run ruff check .              # Check
-uv run ruff check . --fix        # Auto-fix
-uv run ruff format .             # Format
+make pre-commit  # Runs format, lint, typecheck, tests
 ```
 
-### Type Checking
+Individual commands:
+
 ```bash
-uv run mypy src/
+make lint        # Ruff linter
+make format      # Auto-format code
+make typecheck   # Mypy type checking
+make test-unit   # Unit tests
 ```
 
-## Commit Messages
+## Testing
 
-We use [Conventional Commits](https://www.conventionalcommits.org/):
+```bash
+# All tests
+make test
 
+# Unit tests only
+make test-unit
+
+# With coverage
+make test-cov
+
+# Benchmarks
+make benchmark
 ```
-<type>(<scope>): <description>
 
-[optional body]
-```
+### Writing Tests
 
-**Types:** feat, fix, docs, style, refactor, perf, test, build, ci, chore
-
-**Examples:**
-- `feat(trainer): add create_training_job tool`
-- `fix(core): handle timeout in k8s client`
-- `docs: update README with usage examples`
+- Use `@pytest.fixture` for common setup
+- Mock external dependencies (SDK, K8s client)
+- Test both success and error paths
+- Follow existing patterns in `tests/unit/`
 
 ## Pull Request Process
 
-1. Update tests for your changes
-2. Ensure all checks pass
-3. Update documentation if needed
-4. Request review from maintainers
+1. **Fork** the repository
+2. **Create a branch**: `git checkout -b feature/my-feature`
+3. **Make changes** following the guidelines above
+4. **Run checks**: `make pre-commit`
+5. **Commit** with a descriptive message:
+   ```
+   feat: add support for distributed training metrics
+   
+   - Added get_training_metrics() tool
+   - Integrated with Kubeflow SDK metrics API
+   - Added unit tests
+   ```
+6. **Push** and create a Pull Request
 
-## Areas Open for Contribution
+### Commit Message Format
 
-- **OptimizerClient tools** - Hyperparameter optimization integration
-- **ModelRegistryClient tools** - Model registry integration
-- **Documentation** - Examples and tutorials
-- **Testing** - Increase test coverage
+Use [Conventional Commits](https://www.conventionalcommits.org/):
 
-## Code of Conduct
+- `feat:` New feature
+- `fix:` Bug fix
+- `docs:` Documentation
+- `refactor:` Code refactoring
+- `test:` Adding tests
+- `chore:` Maintenance tasks
 
-Please be respectful and constructive in all interactions.
+## Adding a New Client Module
+
+To add support for new Kubeflow components (e.g., Katib, Model Registry):
+
+1. Create module directory: `src/kubeflow_mcp/your_client/`
+2. Implement tools in `api/` subdirectory
+3. Export `TOOLS` list in `__init__.py`
+4. Register in `core/server.py`:
+
+```python
+CLIENT_MODULES = {
+    "trainer": "kubeflow_mcp.trainer",
+    "your_client": "kubeflow_mcp.your_client",  # Add here
+}
+```
+
+5. Add optional dependency in `pyproject.toml`:
+
+```toml
+[project.optional-dependencies]
+your_client = ["kubeflow-your-client>=1.0"]
+```
 
 ## Questions?
 
-Open an issue or reach out to maintainers.
+- Open an issue for bugs or feature requests
+- Join the [Kubeflow Slack](https://kubeflow.slack.com) for discussions
+- Check existing issues before creating new ones
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the Apache 2.0 License.
