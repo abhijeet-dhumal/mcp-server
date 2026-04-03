@@ -144,20 +144,32 @@ def get_runtime(name: str) -> dict[str, Any]:
 
 
 def get_runtime_packages(name: str) -> dict[str, Any]:
-    """Get pip packages installed in a runtime.
+    """Get pip packages installed in a runtime by executing pip list in the runtime container.
 
     Args:
         name: Runtime name
 
-    Returns: {runtime, packages}
+    Returns: {runtime, packages} or prints packages to stdout (SDK behavior)
     """
     try:
         client = get_trainer_client()
-        # SDK 0.4.0 may not have this method - try to get from runtime
-        rt = client.get_runtime(name=name)
-        packages = rt.packages if hasattr(rt, "packages") else []
+        # First get the Runtime object (SDK requires Runtime, not name)
+        runtime = client.get_runtime(name=name)
 
-        return ToolResponse(data={"runtime": name, "packages": packages}).model_dump()
+        # SDK's get_runtime_packages() prints to stdout and may return None
+        # It executes 'pip list' inside the runtime container
+        result = client.get_runtime_packages(runtime=runtime)
+
+        # Result may be None (prints to stdout) or a list
+        if result is None:
+            return ToolResponse(
+                data={
+                    "runtime": name,
+                    "message": "Packages printed to stdout. Check logs for details.",
+                }
+            ).model_dump()
+
+        return ToolResponse(data={"runtime": name, "packages": result}).model_dump()
 
     except Exception as e:
         return ToolError(
