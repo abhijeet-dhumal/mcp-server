@@ -7,8 +7,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from kubeflow_mcp.trainer.api.monitoring import (
     get_training_events,
     get_training_logs,
@@ -252,7 +250,7 @@ class TestWaitForTraining:
         )
         mock_get_client.return_value = mock_client
 
-        result = wait_for_training(name="my-job", timeout_seconds=3600)
+        wait_for_training(name="my-job", timeout_seconds=3600)
 
         mock_client.wait_for_job_status.assert_called_once_with(
             name="my-job",

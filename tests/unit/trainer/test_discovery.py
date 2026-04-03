@@ -4,10 +4,7 @@ Tests list_training_jobs, get_training_job, list_runtimes, get_runtime, get_runt
 """
 
 from dataclasses import dataclass
-from datetime import datetime
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from kubeflow_mcp.trainer.api.discovery import (
     get_runtime,

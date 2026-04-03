@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from kubeflow_mcp.trainer.api.training import (
     fine_tune,
     run_container_training,

@@ -55,9 +55,12 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Benchmarks
+# Benchmarks (keep latest for README, ignore versioned)
 benchmark-results.json
 .benchmarks/
+tests/benchmarks/results/*
+!tests/benchmarks/results/benchmark_report_latest.png
+!tests/benchmarks/results/benchmark_report_latest.json
 
 # Local dev
 .env

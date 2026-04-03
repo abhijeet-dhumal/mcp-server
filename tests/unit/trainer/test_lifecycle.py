@@ -5,8 +5,6 @@ Tests delete_training_job (SDK), suspend_training_job (K8s), resume_training_job
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from kubeflow_mcp.trainer.api.lifecycle import (
     delete_training_job,
     resume_training_job,

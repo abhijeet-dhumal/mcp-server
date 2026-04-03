@@ -174,6 +174,35 @@ def describe_tools(tool_names: list[str]) -> dict[str, Any]:
     return {"tools": results}
 
 
+def _format_friendly_error(result: dict[str, Any]) -> dict[str, Any]:
+    """Convert technical errors to user-friendly messages."""
+    if not result.get("success") is False:
+        return result
+
+    error = result.get("error", "")
+    error_code = result.get("error_code", "")
+
+    # Common Kubernetes errors
+    if "401" in error or "Unauthorized" in error:
+        result["friendly_error"] = "Not connected to Kubernetes cluster. Check your kubeconfig."
+        result["hint"] = "Run: kubectl config current-context"
+    elif "403" in error or "Forbidden" in error:
+        result["friendly_error"] = "Permission denied. Your account lacks access to this resource."
+        result["hint"] = "Check RBAC permissions with: kubectl auth can-i"
+    elif "404" in error or "not found" in error.lower():
+        result["friendly_error"] = "Resource not found."
+    elif "Connection refused" in error or "connection refused" in error.lower():
+        result["friendly_error"] = "Cannot connect to Kubernetes cluster."
+        result["hint"] = "Is the cluster running? Check: kubectl cluster-info"
+    elif "timeout" in error.lower():
+        result["friendly_error"] = "Request timed out. The cluster may be slow or unreachable."
+    elif error_code == "SDK_ERROR" and "HuggingFace" in error:
+        result["friendly_error"] = "Could not fetch model info from HuggingFace."
+        result["hint"] = "Check the model ID format (e.g., 'meta-llama/Llama-3.2-1B')"
+
+    return result
+
+
 def execute_tool(tool_name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
     """Execute a discovered tool.
 
@@ -194,7 +223,9 @@ def execute_tool(tool_name: str, arguments: dict[str, Any] | None = None) -> dic
 
     try:
         result = func(**args)
-        return result if isinstance(result, dict) else {"result": result}
+        if isinstance(result, dict):
+            return _format_friendly_error(result)
+        return {"result": result}
     except Exception as e:
         return {"error": str(e), "tool": tool_name, "arguments": args}
 
@@ -252,16 +283,39 @@ def find_tools(query: str, top_k: int = 5) -> dict[str, Any]:
     return the most relevant tools.
 
     Args:
-        query: Natural language description of what you want to do. Examples:
+        query: Natural language description. Examples:
+            - "all" - LIST ALL 16 AVAILABLE KUBEFLOW TOOLS (use when user asks what tools exist)
             - "check GPU availability in the cluster"
             - "fine-tune a language model"
             - "view logs from a training job"
             - "delete a failed job"
-        top_k: Number of results to return (default 5)
+        top_k: Number of results to return (default 5, ignored when query="all")
 
     Returns:
-        {tools: [{name, description, score}], hint: "Use execute_tool(name, args)"}
+        {tools: [{name, description, category}], hint: "Use execute_tool(name, args)"}
     """
+    # Special case: list all tools
+    query_lower = query.strip().lower()
+    list_all_patterns = (
+        "*", "all", "list", "list all", "all tools", "available tools",
+        "what tools", "show tools", "show all", "every tool", "everything",
+        "available", "what's available", "whats available",
+    )
+    if query_lower in list_all_patterns or "all tool" in query_lower or "available tool" in query_lower:
+        return {
+            "query": query,
+            "total": len(TOOL_REGISTRY),
+            "tools": [
+                {
+                    "name": name,
+                    "description": info["description"],
+                    "category": info["category"],
+                }
+                for name, info in TOOL_REGISTRY.items()
+            ],
+            "hint": "Use execute_tool(tool_name, {args}) to run a tool",
+        }
+
     embeddings, model = _get_embeddings()
 
     if embeddings is None:
@@ -354,29 +408,39 @@ def get_dynamic_tools(mode: str = "progressive") -> list[Callable[..., Any]]:
 def get_dynamic_system_prompt(mode: str = "progressive") -> str:
     """Get system prompt for dynamic tool mode."""
     if mode == "semantic":
-        return """Kubeflow training assistant. Run full workflow without pausing.
+        return """You are a Kubeflow training assistant. Help users manage ML training jobs on Kubernetes.
 
-WORKFLOW (run ALL in one turn, only pause for final confirmation):
-1. find_tools → get_cluster_resources → execute
-2. find_tools → estimate_resources → execute
-3. find_tools → list_runtimes → execute
-4. find_tools → fine_tune(confirmed=False) → execute → SHOW PREVIEW
-5. WAIT for user confirmation
-6. fine_tune(confirmed=True)
+When greeted, introduce yourself briefly and offer these options:
+- Check cluster resources (GPUs, nodes)
+- Fine-tune a model (e.g., Llama, Gemma)  
+- List training jobs or runtimes
+- Monitor a running job
 
-CRITICAL: Do NOT pause between steps 1-4. Run them all, then show preview and wait.
-Use hf:// prefix for model/dataset URIs.
+IMPORTANT: When user asks "what tools are available" or similar, call find_tools("all") to show all 16 Kubeflow tools.
+
+When the user asks to train, fine-tune, or work with models:
+1. find_tools("check cluster") → execute get_cluster_resources
+2. find_tools("estimate") → execute estimate_resources (model ID like "google/gemma-2b")
+3. find_tools("runtimes") → execute list_runtimes  
+4. find_tools("fine-tune") → execute fine_tune(confirmed=False) → show preview
+5. Wait for user confirmation before submitting
+
+Use hf:// prefix for model/dataset URIs. If errors occur, explain them clearly.
 """
 
-    return """Kubeflow training assistant. Run full workflow without pausing.
+    return """You are a Kubeflow training assistant. Help users manage ML training jobs on Kubernetes.
 
-WORKFLOW (run ALL in one turn, only pause for final confirmation):
-1. list_tools("planning") → execute get_cluster_resources, estimate_resources
-2. list_tools("discovery") → execute list_runtimes
-3. list_tools("training") → execute fine_tune(confirmed=False) → SHOW PREVIEW
-4. WAIT for user confirmation
-5. fine_tune(confirmed=True)
+When greeted, introduce yourself briefly and offer these options:
+- Check cluster resources (GPUs, nodes)
+- Fine-tune a model (e.g., Llama, Gemma)
+- List training jobs or runtimes
+- Monitor a running job
 
-CRITICAL: Do NOT pause between steps 1-3. Run them all, then show preview and wait.
-Use hf:// prefix for model/dataset URIs.
+When the user asks to train, fine-tune, check resources, or work with models:
+1. list_tools("planning") → execute relevant tools
+2. list_tools("discovery") → execute list_runtimes if needed
+3. list_tools("training") → execute fine_tune(confirmed=False) → show preview
+4. Wait for user confirmation before submitting
+
+Use hf:// prefix for model/dataset URIs. If errors occur, explain them clearly.
 """

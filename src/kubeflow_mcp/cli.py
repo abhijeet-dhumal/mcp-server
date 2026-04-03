@@ -1,8 +1,13 @@
 """Kubeflow MCP Server CLI."""
 
+import warnings
+
 import click
 
 from kubeflow_mcp import __version__
+
+# Suppress pydantic warnings from fastmcp/mcp dependencies
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
 
 @click.group()
@@ -92,6 +97,58 @@ def status() -> None:
             click.echo(f"  {name}: {status} ({tools} tools)")
         except ImportError:
             click.echo(f"  {name}: not installed")
+
+
+@cli.command()
+@click.option(
+    "--backend",
+    "-b",
+    default="ollama",
+    type=click.Choice(["ollama"]),
+    help="Agent backend (ollama, openai, anthropic)",
+)
+@click.option(
+    "--model",
+    "-m",
+    default="qwen3:8b",
+    help="Model name for the agent",
+)
+@click.option(
+    "--mode",
+    default="static",
+    type=click.Choice(["static", "progressive", "semantic"]),
+    help="Tool loading mode",
+)
+@click.option(
+    "--thinking/--no-thinking",
+    default=False,
+    help="Enable thinking output for supported models",
+)
+def agent(backend: str, model: str, mode: str, thinking: bool) -> None:
+    """Run an interactive AI agent."""
+    if backend == "ollama":
+        try:
+            from kubeflow_mcp.agents.ollama import main as ollama_main
+        except ImportError:
+            click.echo("Error: Agent dependencies not installed.", err=True)
+            click.echo("Install with: pip install kubeflow-mcp[agents]", err=True)
+            raise SystemExit(1)
+
+        import sys
+
+        sys.argv = [
+            "kubeflow-mcp-agent",
+            "--model",
+            model,
+            "--mode",
+            mode,
+        ]
+        if thinking:
+            sys.argv.append("--thinking")
+        ollama_main()
+    else:
+        click.echo(f"Backend '{backend}' not yet implemented.", err=True)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

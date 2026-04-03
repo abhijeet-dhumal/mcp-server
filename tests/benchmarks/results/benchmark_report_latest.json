@@ -1,0 +1,68 @@
+{
+  "commit": "7081752",
+  "timestamp": "2026-04-03T18:20:23.141043",
+  "python_version": "3.12.11",
+  "environment": {
+    "python": "3.12.11",
+    "os": "Darwin",
+    "os_version": "25.3.0",
+    "machine": "arm64",
+    "processor": "arm"
+  },
+  "token_usage": {
+    "tokenizer": "cl100k_base (GPT-4)",
+    "tools": {
+      "get_cluster_resources": 24,
+      "estimate_resources": 48,
+      "fine_tune": 177,
+      "run_custom_training": 68,
+      "run_container_training": 128,
+      "list_training_jobs": 38,
+      "get_training_job": 27,
+      "list_runtimes": 34,
+      "get_runtime": 23,
+      "get_runtime_packages": 35,
+      "get_training_logs": 46,
+      "get_training_events": 44,
+      "wait_for_training": 49,
+      "delete_training_job": 28,
+      "suspend_training_job": 38,
+      "resume_training_job": 31
+    },
+    "modes": {
+      "static": 838,
+      "progressive": 85,
+      "semantic": 69
+    },
+    "server_instructions": 317,
+    "categories": {
+      "core": 319,
+      "planning": 72,
+      "training": 373,
+      "discovery": 157,
+      "monitoring": 139,
+      "lifecycle": 97
+    }
+  },
+  "latency": {
+    "server_creation_ms": {
+      "mean": 4.1463250600099855,
+      "std": 0.10680595036822176,
+      "min": 3.9501249993918464,
+      "max": 4.497667000578076,
+      "p50": 4.154459000346833,
+      "p95": 4.332999999860476,
+      "p99": 4.497667000578076,
+      "ci95": 0.029605099016365825,
+      "iterations": 50
+    }
+  },
+  "memory": {
+    "server_kb": {
+      "current_mean": 165.7205078125,
+      "peak_mean": 192.6951171875,
+      "peak_std": 9.534755409876322,
+      "samples": 5
+    }
+  }
+}

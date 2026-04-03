@@ -37,7 +37,7 @@ from kubeflow_mcp.agents.dynamic_tools import (  # noqa: E402
     get_dynamic_system_prompt,
     get_dynamic_tools,
 )
-from kubeflow_mcp.trainer import TOOLS, get_tools  # noqa: E402
+from kubeflow_mcp.trainer import TOOLS  # noqa: E402
 
 console = Console()
 
@@ -47,55 +47,33 @@ DEFAULT_URL = "http://localhost:11434"
 # Tool modes for different token budgets
 TOOL_MODES = {
     "static": "All 16 tools loaded (~3K tokens)",
-    "lite": "5 core tools only (~1.5K tokens)",
     "progressive": "3 meta-tools with hierarchical discovery (~500 tokens)",
     "semantic": "2 meta-tools with embedding search (~400 tokens)",
 }
 
 # Full system prompt for static mode
-SYSTEM_PROMPT_FULL = """You are a Kubeflow training assistant. Be concise and action-oriented.
+SYSTEM_PROMPT_FULL = """You are a Kubeflow training assistant. Help users manage ML training jobs on Kubernetes.
 
-FINE-TUNING WORKFLOW - RUN ALL STEPS AUTOMATICALLY WITHOUT PAUSING:
-1. get_cluster_resources() → Check available GPUs/nodes
-2. estimate_resources(model) → Check what the model needs (use model ID like "google/gemma-2b")
-3. list_runtimes() → Check available training runtimes
-4. fine_tune(..., confirmed=False) → Show preview (use hf:// prefix: "hf://google/gemma-2b")
-5. STOP HERE - wait for user to confirm
-6. fine_tune(..., confirmed=True) → Submit after user says yes/proceed/confirm
+When greeted, introduce yourself briefly and offer these options:
+- Check cluster resources (GPUs, nodes)
+- Fine-tune a model (e.g., Llama, Gemma)
+- List training jobs or runtimes
+- Monitor a running job
 
-CRITICAL RULES:
-- RUN STEPS 1-4 IN ONE GO: Do NOT pause between steps. Do NOT ask "should I continue?". Just execute all checks and show the preview.
-- ONLY PAUSE AT STEP 5: The ONLY time you stop and wait is after showing the preview.
-- MODEL FORMAT:
-  - estimate_resources(): Use "google/gemma-2b" (no prefix)
-  - fine_tune(): Use "hf://google/gemma-2b" (with hf:// prefix)
-- NO GPUs: If gpu_total=0, automatically use CPU training
-- KEEP IT SHORT: Summarize findings in 1-2 sentences, then show preview
+When the user asks to train or fine-tune a model, execute the workflow:
+1. get_cluster_resources() - check available GPUs
+2. estimate_resources("model-id") - estimate requirements (use "google/gemma-2b" format)
+3. list_runtimes() - check available runtimes
+4. fine_tune(..., confirmed=False) - show preview (use "hf://google/gemma-2b" format)
+5. Wait for user confirmation before submitting
 
-BAD FLOW (too many pauses):
-"No GPUs. Should I check resources?" → user: proceed → "Memory is 30Gi. Should I check runtimes?" → user: proceed
-GOOD FLOW (automatic):
-"No GPUs, using CPU. Model needs 30Gi. Runtime: torch-distributed. Preview: {...}. Confirm?"
+Execute steps 1-4 together. Only pause after showing the preview.
 
-RUNTIME COMPATIBILITY:
-- fine_tune() requires 'torch-tune' or 'torchtune' runtime (has model/dataset initializers)
-- If only 'torch-distributed' is available, use run_container_training() with a HuggingFace training image instead
+Model ID formats:
+- estimate_resources(): "google/gemma-2b" (no prefix)
+- fine_tune(): "hf://google/gemma-2b" (with hf:// prefix)
 
-EXAMPLE:
-User: "Fine-tune gemma on alpaca"
-→ get_cluster_resources() → estimate_resources("google/gemma-2b") → list_runtimes()
-→ If 'torch-tune' available: fine_tune("hf://google/gemma-2b", "hf://tatsu-lab/alpaca", confirmed=False)
-→ If only 'torch-distributed': "Runtime doesn't support HF initializers. Use run_container_training() instead."
-"""
-
-# Compact system prompt for lite mode
-SYSTEM_PROMPT_LITE = """Kubeflow training assistant. Run full workflow without pausing.
-
-WORKFLOW (run steps 1-4 automatically, only pause at step 5):
-1. get_cluster_resources() 2. estimate_resources("model/name") 3. list_runtimes() 4. fine_tune("hf://model", "hf://dataset", confirmed=False) → PREVIEW
-5. WAIT for confirmation 6. fine_tune(..., confirmed=True)
-
-RULES: Run all checks in one turn. Only pause for final confirmation.
+If no GPUs (gpu_total=0), use CPU training. If errors occur, explain clearly.
 """
 
 # Default to full prompt
@@ -104,23 +82,18 @@ SYSTEM_PROMPT = SYSTEM_PROMPT_FULL
 
 def create_tools(
     mode: str = "static",
-    categories: list[str] | None = None,
 ) -> list[FunctionTool]:
     """Convert kubeflow-mcp tools to LlamaIndex FunctionTools.
 
     Args:
         mode: Tool loading mode:
             - "static": All 16 tools (~3K tokens)
-            - "lite": 5 core tools (~1.5K tokens)
             - "progressive": 3 meta-tools for hierarchical discovery (~500 tokens)
             - "semantic": 2 meta-tools for embedding search (~400 tokens)
-        categories: For lite mode, which categories to load
     """
     # Dynamic modes use meta-tools
     if mode in ("progressive", "semantic"):
         tool_funcs = get_dynamic_tools(mode)
-    elif mode == "lite":
-        tool_funcs = get_tools(categories or ["core"])
     else:
         tool_funcs = TOOLS  # type: ignore[assignment]
 
@@ -156,7 +129,6 @@ class OllamaAgent:
 
     Supports multiple tool modes for different context budgets:
         - "static": All 16 tools (~3K tokens) - best accuracy
-        - "lite": 5 core tools (~1.5K tokens) - good for 8K models
         - "progressive": 3 meta-tools (~500 tokens) - hierarchical discovery
         - "semantic": 2 meta-tools (~400 tokens) - embedding-based discovery
     """
@@ -186,8 +158,6 @@ class OllamaAgent:
         # Set system prompt based on mode
         if tool_mode in ("progressive", "semantic"):
             self._system_prompt = get_dynamic_system_prompt(tool_mode)
-        elif tool_mode == "lite":
-            self._system_prompt = SYSTEM_PROMPT_LITE
         else:
             self._system_prompt = SYSTEM_PROMPT_FULL
 
@@ -225,7 +195,8 @@ class OllamaAgent:
             # Create tools based on mode
             self._tools = create_tools(mode=self.tool_mode)
             self.llm = self._create_llm(with_thinking)
-            self.memory = ChatMemoryBuffer.from_defaults(token_limit=8000)
+            # Larger memory for complex workflows (qwen3:8b has 32K context)
+            self.memory = ChatMemoryBuffer.from_defaults(token_limit=16000)
 
             self._agent = FunctionAgent(
                 tools=self._tools,  # type: ignore[arg-type]
@@ -268,8 +239,6 @@ class OllamaAgent:
         # Update system prompt based on mode
         if mode in ("progressive", "semantic"):
             self._system_prompt = get_dynamic_system_prompt(mode)
-        elif mode == "lite":
-            self._system_prompt = SYSTEM_PROMPT_LITE
         else:
             self._system_prompt = SYSTEM_PROMPT_FULL
 
@@ -309,9 +278,10 @@ class OllamaAgent:
 
             async for event in handler.stream_events():
                 if isinstance(event, AgentStream):
-                    # Stream thinking output
-                    if event.thinking_delta and on_thinking:
-                        on_thinking(event.thinking_delta)
+                    # Stream thinking output (attribute may not exist in all SDK versions)
+                    thinking_delta = getattr(event, "thinking_delta", None)
+                    if thinking_delta and on_thinking:
+                        on_thinking(thinking_delta)
 
                     # Collect tool calls
                     if event.tool_calls:
@@ -365,23 +335,58 @@ class OllamaAgent:
         """Synchronous chat wrapper using dedicated event loop.
 
         Uses short polling intervals to allow Ctrl+C to interrupt.
+        Includes retry logic for empty responses.
         """
         import asyncio
 
-        future = asyncio.run_coroutine_threadsafe(
-            self._chat_async(message, on_thinking, on_tool_call, on_tool_result),
-            self._loop,
-        )
+        def run_chat(msg: str) -> tuple[str, list[dict]]:
+            future = asyncio.run_coroutine_threadsafe(
+                self._chat_async(msg, on_thinking, on_tool_call, on_tool_result),
+                self._loop,
+            )
+            while True:
+                try:
+                    return future.result(timeout=0.5)
+                except TimeoutError:
+                    continue
+                except KeyboardInterrupt:
+                    future.cancel()
+                    raise
 
-        # Poll with short timeout to allow KeyboardInterrupt
-        while True:
-            try:
-                return future.result(timeout=0.5)
-            except TimeoutError:
-                continue
-            except KeyboardInterrupt:
-                future.cancel()
-                raise
+        response, tool_calls = run_chat(message)
+
+        # Retry logic for empty responses
+        if not response.strip() and not tool_calls:
+            # Check if this was an action-oriented message
+            action_words = ["yes", "proceed", "go", "ok", "start", "run", "train", "do it"]
+            msg_lower = message.lower().strip()
+
+            if any(word in msg_lower for word in action_words):
+                console.print("[dim yellow]⚠ Empty response, retrying...[/dim yellow]")
+
+                # Try disabling thinking mode (often causes empty responses)
+                if self._use_thinking:
+                    self.set_thinking_mode(False)
+
+                # Retry with more explicit instruction
+                retry_msg = f"Execute the action now: {message}"
+                response, tool_calls = run_chat(retry_msg)
+
+                # Second retry with even more explicit prompt
+                if not response.strip() and not tool_calls:
+                    retry_msg = "User confirmed. Call the appropriate tool to complete the task."
+                    response, tool_calls = run_chat(retry_msg)
+
+            # If still empty, provide helpful message
+            if not response.strip() and not tool_calls:
+                response = (
+                    "I couldn't generate a response. Try:\n"
+                    "- `/think` to toggle thinking mode\n"
+                    "- Be more specific about what you want\n"
+                    "- Use `/mode static` for more reliable responses"
+                )
+
+        return response, tool_calls
 
     def close(self):
         """Clean up agent resources."""
@@ -431,7 +436,6 @@ def run_chat(
         url: Ollama server URL
         tool_mode: Tool loading mode:
             - "static": All 16 tools (~3K tokens)
-            - "lite": 5 core tools (~1.5K tokens)
             - "progressive": 3 meta-tools, hierarchical discovery (~500 tokens)
             - "semantic": 2 meta-tools, embedding search (~400 tokens)
     """
@@ -445,11 +449,12 @@ def run_chat(
     welcome.add_row(Text(f"Tools: {mode_desc}", style="bright_yellow"))
     welcome.add_row()
     welcome.add_row(Text("Commands:", style="bright_yellow"))
-    welcome.add_row(Text("  /tools  - List available tools", style="white"))
-    welcome.add_row(Text("  /mode   - Switch tool mode (static/lite/progressive/semantic)", style="white"))
-    welcome.add_row(Text("  /think  - Toggle thinking output (for reasoning models)", style="white"))
-    welcome.add_row(Text("  exit    - Quit the agent", style="white"))
-    welcome.add_row(Text("  Ctrl+C  - Cancel current request", style="white"))
+    welcome.add_row(Text("  /tools       - List available tools", style="white"))
+    welcome.add_row(Text("  /mode        - Switch tool mode (static/progressive/semantic)", style="white"))
+    welcome.add_row(Text("  /think       - Toggle thinking output", style="white"))
+    welcome.add_row(Text("  /file <path> - Read file and analyze it", style="white"))
+    welcome.add_row(Text("  /clear       - Clear conversation memory", style="white"))
+    welcome.add_row(Text("  exit         - Quit the agent", style="white"))
 
     console.print()
     console.print(
@@ -534,6 +539,18 @@ def run_chat(
                 status = "ON" if show_thinking else "OFF"
                 console.print(f"[bright_yellow]Thinking mode: {status}[/bright_yellow]")
                 if show_thinking:
+                    console.print("[dim]Model reasoning will be shown during responses.[/dim]")
+                continue
+
+            if user_input.lower() == "/clear":
+                # Reset memory to clear context
+                if agent.memory:
+                    agent.memory.reset()
+                    console.print("[bright_green]✓ Conversation memory cleared[/bright_green]")
+                    console.print("[dim]Context reset - start fresh![/dim]")
+                else:
+                    console.print("[dim]No memory to clear[/dim]")
+                if show_thinking:
                     console.print(
                         "[dim]Note: Only reasoning models (deepseek-r1, qwq, etc.) show thinking output[/dim]"
                     )
@@ -558,6 +575,48 @@ def run_chat(
                     except ValueError as e:
                         console.print(f"[bright_red]✗ {e}[/bright_red]")
                 continue
+
+            # /file command - read local file and include in message
+            if user_input.lower().startswith("/file"):
+                # Handle /file without path
+                if user_input.lower() == "/file" or user_input[5:].strip() == "":
+                    console.print("[bright_yellow]Usage: /file <path>[/bright_yellow]")
+                    console.print("[dim]Example: /file examples/mnist_train.py[/dim]")
+                    console.print("[dim]         /file ~/scripts/train.py[/dim]")
+                    continue
+
+                file_path = user_input[5:].strip()
+                # Remove leading space if present
+                if file_path.startswith(" "):
+                    file_path = file_path[1:]
+
+                try:
+                    from pathlib import Path
+
+                    path = Path(file_path).expanduser()
+                    if not path.exists():
+                        console.print(f"[bright_red]✗ File not found: {file_path}[/bright_red]")
+                        console.print("[dim]Check the path and try again[/dim]")
+                        continue
+
+                    if not path.is_file():
+                        console.print(f"[bright_red]✗ Not a file: {file_path}[/bright_red]")
+                        continue
+
+                    content = path.read_text()
+                    lines = len(content.splitlines())
+                    console.print(f"[bright_green]✓ Read {path.name} ({lines} lines)[/bright_green]")
+
+                    # Detect file type for syntax highlighting
+                    ext = path.suffix.lower()
+                    lang = {"py": "python", "js": "javascript", "ts": "typescript", "yaml": "yaml", "yml": "yaml", "json": "json"}.get(ext.lstrip("."), "")
+
+                    # Include file content in next message
+                    user_input = f"Here is the contents of `{path.name}`:\n\n```{lang}\n{content}\n```\n\nPlease analyze this file and tell me what it does."
+                    # Fall through to normal processing
+                except Exception as e:
+                    console.print(f"[bright_red]Error reading file: {e}[/bright_red]")
+                    continue
 
             # Show user message
             console.print()
@@ -708,16 +767,12 @@ def main():
         epilog="""
 Tool modes:
   static      All 16 tools (~3K tokens) - best accuracy, needs 32K context
-  lite        5 core tools (~1.5K tokens) - good for 8K models
-  progressive 3 meta-tools (~500 tokens) - hierarchical discovery, 100x reduction
+  progressive 3 meta-tools (~500 tokens) - hierarchical discovery, 90% token reduction
   semantic    2 meta-tools (~400 tokens) - embedding search, needs sentence-transformers
 
 Examples:
   # Default - all tools (for qwen2.5:7b with 32K context)
   python -m kubeflow_mcp.agents.ollama
-
-  # Lite mode (for llama3.2:3b with 8K context)
-  python -m kubeflow_mcp.agents.ollama --mode lite
 
   # Progressive mode (minimal tokens, hierarchical discovery)
   python -m kubeflow_mcp.agents.ollama --mode progressive
@@ -730,7 +785,7 @@ Examples:
     parser.add_argument("--url", default=DEFAULT_URL, help="Ollama server URL")
     parser.add_argument(
         "--mode",
-        choices=["static", "lite", "progressive", "semantic"],
+        choices=["static", "progressive", "semantic"],
         default="static",
         help="Tool loading mode (default: static)",
     )

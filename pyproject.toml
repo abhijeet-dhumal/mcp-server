@@ -48,9 +48,13 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-cov>=4.0",
-    "pytest-benchmark>=4.0",
     "ruff>=0.4",
     "mypy>=1.10",
+]
+benchmark = [
+    "pytest-benchmark>=4.0",
+    "tiktoken>=0.7",
+    "matplotlib>=3.8",
 ]
 docs = [
     "sphinx>=7.0",

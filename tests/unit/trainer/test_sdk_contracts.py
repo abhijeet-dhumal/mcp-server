@@ -15,7 +15,6 @@ from dataclasses import fields
 from typing import get_type_hints
 
 import pytest
-
 from kubeflow.trainer import TrainerClient
 from kubeflow.trainer.types import types as sdk_types
 

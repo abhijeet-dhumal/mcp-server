@@ -13,9 +13,7 @@ on Kubernetes — all through natural language.
 
 ## Overview
 
-The Kubeflow MCP Server bridges AI assistants (Claude, Cursor, custom agents) with Kubeflow's
-training infrastructure. Instead of writing YAML manifests or learning Kubernetes APIs, simply
-describe what you want to train and let AI handle the complexity.
+The Kubeflow MCP Server bridges AI assistants/agents with Kubeflow's training infrastructure. Instead of writing YAML manifests or learning Kubernetes APIs, simply describe what you want to train and let AI handle the complexity.
 
 ### Key Benefits
 
@@ -23,9 +21,9 @@ describe what you want to train and let AI handle the complexity.
 - **Smart Resource Planning**: AI estimates GPU/memory requirements before job submission
 - **Real-time Monitoring**: Stream logs, track progress, and debug failures conversationally
 - **Safe by Design**: Preview configurations before submission, built-in validation and guardrails
-- **Multi-Client Support**: Works with Claude Desktop, Cursor IDE, MCP Inspector, or custom Ollama agents
+- **Multi-Client Support**: Works with Claude Desktop, Cursor IDE, MCP Inspector, or custom agents
 
-### SDK Compatibility
+### Compatibility
 
 | Component | Version | Notes |
 |-----------|---------|-------|
@@ -59,12 +57,16 @@ Add to `~/.cursor/mcp.json`:
 {
   "mcpServers": {
     "kubeflow": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/mcp-server", "kubeflow-mcp", "serve"]
+      "command": "kubeflow-mcp",
+      "args": ["serve", "--persona", "ml-engineer", "--transport", "stdio"]
     }
   }
 }
 ```
+
+**Options:** `--persona` (readonly|data-scientist|ml-engineer|platform-admin), `--transport` (stdio|http), `--log-level` (DEBUG|INFO|WARNING|ERROR)
+
+Requires `pip install kubeflow-mcp` first.
 </details>
 
 <details>
@@ -77,12 +79,16 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 {
   "mcpServers": {
     "kubeflow": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/mcp-server", "kubeflow-mcp", "serve"]
+      "command": "kubeflow-mcp",
+      "args": ["serve", "--persona", "ml-engineer", "--transport", "stdio"]
     }
   }
 }
 ```
+
+**Options:** `--persona` (readonly|data-scientist|ml-engineer|platform-admin), `--transport` (stdio|http), `--log-level` (DEBUG|INFO|WARNING|ERROR)
+
+Requires `pip install kubeflow-mcp` first.
 </details>
 
 <details>
@@ -104,109 +110,6 @@ Once configured, ask your AI assistant:
 "How many GPUs do I need to fine-tune Llama-3-8B?"
 ```
 
-## Local Agent (Ollama)
-
-Run a fully local AI agent powered by Ollama — no cloud APIs required:
-
-```bash
-# Install with agent support
-uv sync --extra agents
-
-# Pull a model with tool-calling support
-ollama pull qwen2.5:7b
-
-# Start the interactive agent
-uv run python -m kubeflow_mcp.agents.ollama --model qwen2.5:7b
-```
-
-### Token-Efficient Tool Modes
-
-The agent supports multiple tool loading modes for different model context sizes.
-Based on [dynamic toolset patterns](https://www.speakeasy.com/blog/100x-token-reduction-dynamic-toolsets):
-
-| Mode | Tools | Tokens | Best For |
-|------|-------|--------|----------|
-| `static` | 16 | ~2,100 | Large context models (32K+) |
-| `lite` | 5 | ~710 | Small context models (8K) |
-| `progressive` | 3 meta | ~680 | Hierarchical discovery |
-| `semantic` | 2 meta | ~430 | Natural language search |
-
-```bash
-# Default - all 16 tools (for qwen2.5:7b with 32K context)
-uv run python -m kubeflow_mcp.agents.ollama
-
-# Lite mode - 5 core tools (for llama3.2:3b with 8K context)
-uv run python -m kubeflow_mcp.agents.ollama --mode lite
-
-# Progressive mode - hierarchical discovery (minimal tokens)
-uv run python -m kubeflow_mcp.agents.ollama --mode progressive
-
-# Semantic mode - embedding-based search (requires sentence-transformers)
-pip install sentence-transformers
-uv run python -m kubeflow_mcp.agents.ollama --mode semantic
-```
-
-**Runtime commands:**
-- `/mode` - Show current mode and switch (e.g., `/mode lite`)
-- `/tools` - List loaded tools
-- `/think` - Toggle thinking output
-
-<details>
-<summary><b>How Progressive Discovery Works</b></summary>
-
-Instead of loading all 16 tools upfront, the agent uses 3 meta-tools:
-
-1. **`list_tools(prefix)`** - Discover tools by category
-2. **`describe_tools([names])`** - Get full schema for specific tools
-3. **`execute_tool(name, args)`** - Run the discovered tool
-
-```
-User: "Fine-tune llama on squad"
-
-Agent: list_tools("training")
-→ Returns: fine_tune, run_custom_training, run_container_training
-
-Agent: describe_tools(["fine_tune"])
-→ Returns: Full parameter schema
-
-Agent: execute_tool("fine_tune", {"model": "meta-llama/Llama-3.2-1B", "dataset": "squad"})
-→ Executes the training job
-```
-
-This achieves **67% token reduction** while maintaining full functionality.
-</details>
-
-<details>
-<summary><b>How Semantic Search Works</b></summary>
-
-Uses embeddings to find relevant tools from natural language:
-
-1. **`find_tools(query)`** - Search tools by description
-2. **`execute_tool(name, args)`** - Run the found tool
-
-```
-User: "Fine-tune llama on squad"
-
-Agent: find_tools("fine-tune a language model on dataset")
-→ Returns: fine_tune (0.89), run_custom_training (0.72), ...
-
-Agent: execute_tool("fine_tune", {"model": "meta-llama/Llama-3.2-1B", "dataset": "squad"})
-```
-
-This achieves **80% token reduction** with semantic matching.
-</details>
-
-### Recommended Models
-
-| Model | Context | RAM | Tool Calling | Thinking |
-|-------|---------|-----|--------------|----------|
-| `qwen2.5:7b` | 32K | 7GB | ✅ | ❌ |
-| `qwen3:8b` | 32K | 8GB | ✅ | ✅ |
-| `llama3.2:3b` | 8K | 3GB | ✅ | ❌ |
-| `phi4-mini-reasoning` | 16K | 8GB | ✅ | ✅ |
-
-For 8K context models, use `--mode lite` or `--mode progressive`.
-
 ## Available Tools
 
 | Category | Tools | Description |
@@ -220,7 +123,6 @@ For 8K context models, use `--mode lite` or `--mode progressive`.
 ### Example: Fine-tune an LLM
 
 ```python
-# The AI assistant calls this behind the scenes
 fine_tune(
     model="google/gemma-2b",
     dataset="squad",
@@ -234,7 +136,6 @@ fine_tune(
 
 Ask: *"How much GPU memory do I need for Llama-3-70B?"*
 
-The server fetches model info from HuggingFace and calculates:
 ```json
 {
   "model": "meta-llama/Llama-3-70B",
@@ -248,14 +149,105 @@ The server fetches model info from HuggingFace and calculates:
 ## CLI Reference
 
 ```bash
-# Start MCP server (default)
-kubeflow-mcp serve
+# Server
+kubeflow-mcp serve                              # Start MCP server
+kubeflow-mcp serve --clients trainer            # Specify client
+kubeflow-mcp serve --persona ml-engineer        # Set persona
+kubeflow-mcp status                             # Show server status
 
-# Specify clients and persona
-kubeflow-mcp serve --clients trainer --persona ml-engineer
-
-# Available personas: ml-engineer, admin, viewer
+# Agent
+kubeflow-mcp agent --backend ollama --model qwen3:8b
+kubeflow-mcp agent --backend ollama --mode progressive
+kubeflow-mcp agent --backend ollama --thinking  # Enable thinking output
 ```
+
+## Local Agent (Ollama)
+
+Run a fully local AI agent — no cloud APIs required:
+
+```bash
+pip install kubeflow-mcp[agents]    # Install agent dependencies
+ollama pull qwen3:8b                # Pull model with tool-calling support
+kubeflow-mcp agent --backend ollama --model qwen3:8b
+```
+
+![Ollama Agent Chat](assets/ollama-agent-tools.png)
+
+**Example Session:**
+```
+You → hi
+Assistant → Hello! I can help you with: Check cluster resources, Fine-tune models...
+
+You → /file examples/mnist_train.py
+✓ Read mnist_train.py (140 lines)
+
+You → train this with 2 workers
+Agent → [checks resources] → [shows preview] Confirm?
+
+You → yes
+Agent → ✓ Created training job: mnist-train-abc123
+```
+
+<details>
+<summary><b>Token-Efficient Tool Modes</b></summary>
+
+![Ollama Agent Tools](assets/ollama-agent-chat.png)
+
+Optimize token usage with different loading strategies.
+See [dynamic toolset patterns](https://www.speakeasy.com/blog/100x-token-reduction-dynamic-toolsets).
+
+| Mode | Strategy | Tokens | Reduction |
+|------|----------|--------|-----------|
+| `static` | All 16 tools loaded | 838 | baseline |
+| `progressive` | 3 meta-tools for discovery | 85 | -90% |
+| `semantic` | 2 meta-tools + embeddings | 69 | -92% |
+
+
+
+**How Progressive Discovery Works:**
+Uses 3 meta-tools instead of loading all 16:
+1. `list_tools(prefix)` - Discover tools by category
+2. `describe_tools([names])` - Get full schema
+3. `execute_tool(name, args)` - Run the tool
+
+**How Semantic Search Works:**
+Uses embeddings to find relevant tools:
+1. `find_tools(query)` - Search by description
+2. `execute_tool(name, args)` - Run the tool
+
+Requires: `pip install sentence-transformers`
+</details>
+
+<details>
+<summary><b>Recommended Ollama Models</b></summary>
+
+| Model | Context | RAM | Tool Calling | Thinking |
+|-------|---------|-----|--------------|----------|
+| `qwen2.5:7b` | 32K | 7GB | ✅ | ❌ |
+| `qwen3:8b` | 32K | 8GB | ✅ | ✅ |
+| `llama3.2:3b` | 8K | 3GB | ✅ | ❌ |
+| `phi4-mini-reasoning` | 16K | 8GB | ✅ | ✅ |
+
+For 8K context models, use `--mode progressive` or `--mode semantic`.
+</details>
+
+<details>
+<summary><b>All Agent Commands</b></summary>
+
+```bash
+kubeflow-mcp agent --backend ollama                       # static (default)
+kubeflow-mcp agent --backend ollama --mode progressive    # hierarchical
+kubeflow-mcp agent --backend ollama --mode semantic       # embedding search
+```
+| Command | Description |
+|---------|-------------|
+| `/tools` | List available tools |
+| `/mode [name]` | Switch tool mode (static/progressive/semantic) |
+| `/think` | Toggle thinking output |
+| `/file <path>` | Read and analyze a file |
+| `/clear` | Clear conversation memory |
+| `exit` | Quit the agent |
+</details>
 
 ## Cursor Skills
 
@@ -270,19 +262,43 @@ Skills provide domain knowledge about Kubeflow training patterns, helping the AI
 ## Development
 
 ```bash
-# Install all dependencies
-uv sync --all-extras
+# Setup
+make dev              # Install all dev dependencies
 
-# Run tests
-uv run pytest
+# Quality checks
+make lint             # Run ruff linter
+make format           # Auto-format code
+make check            # Lint + type check
+make pre-commit       # Run all checks before commit
 
-# Lint and type check
-uv run ruff check .
-uv run mypy src/
+# Testing
+make test             # Run all tests
+make test-unit        # Unit tests only
+make test-cov         # With coverage report
 
-# Format code
-uv run ruff format .
+# Server
+make serve            # Start MCP server
+make status           # Show server status
 ```
+
+See `make help` for all available commands.
+
+### Benchmarks
+
+Token usage and performance benchmarks across search modes:
+
+![Benchmark Dashboard](tests/benchmarks/results/benchmark_report_latest.png)
+
+```bash
+# Generate benchmark dashboard
+make benchmark
+```
+
+| Mode | Tokens | Reduction | Use Case |
+|------|--------|-----------|----------|
+| Static | 838 | baseline | Full capability, large context |
+| Progressive | 85 | -90% | Hierarchical discovery |
+| Semantic | 69 | -92% | Embedding-based search |
 
 ## Roadmap
 

@@ -5,8 +5,6 @@ Tests get_cluster_resources (K8s API) and estimate_resources (HuggingFace Hub AP
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from kubeflow_mcp.trainer.api.planning import estimate_resources, get_cluster_resources
 
 
