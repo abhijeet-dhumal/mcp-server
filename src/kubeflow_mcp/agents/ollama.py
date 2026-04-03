@@ -968,7 +968,13 @@ Examples:
     parser.add_argument("--url", default=DEFAULT_URL, help="Ollama server URL")
     parser.add_argument(
         "--mode",
-        choices=["full", "progressive", "semantic", "static", "mcp"],  # static/mcp are legacy aliases
+        choices=[
+            "full",
+            "progressive",
+            "semantic",
+            "static",
+            "mcp",
+        ],  # static/mcp are legacy aliases
         default="full",
         help="Tool loading mode: full (all tools), progressive (hierarchical), semantic (embedding search)",
     )

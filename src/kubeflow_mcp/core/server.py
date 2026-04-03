@@ -177,6 +177,7 @@ TOOL_ANNOTATIONS: dict[str, dict] = {
     },
 }
 
+
 def _build_server_instructions() -> str:
     """Build server instructions dynamically from metadata."""
     prompts_section = "\n".join(f"- {name} → {desc}" for name, desc in PROMPT_METADATA.items())
