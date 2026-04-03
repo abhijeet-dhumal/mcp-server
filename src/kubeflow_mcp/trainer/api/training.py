@@ -349,6 +349,7 @@ os.system("""tune run lora_finetune_single_device \\
             error=error_msg,
             error_code=ErrorCode.SDK_ERROR,
             details=details,
+            hint="Use troubleshooting_guide prompt for diagnosis, or resource_planning to check requirements",
         ).model_dump()
 
 
@@ -358,6 +359,12 @@ def run_custom_training(
     num_nodes: int = 1,
     gpu_per_node: int = 1,
     packages: list[str] | None = None,
+    # Runtime patches
+    node_selector: dict[str, str] | None = None,
+    tolerations: list[dict[str, Any]] | None = None,
+    env: list[dict[str, Any]] | None = None,
+    volumes: list[dict[str, Any]] | None = None,
+    volume_mounts: list[dict[str, Any]] | None = None,
     confirmed: bool = False,
 ) -> dict[str, Any]:
     """Run custom Python training script on cluster.
@@ -368,6 +375,11 @@ def run_custom_training(
         num_nodes: Distributed nodes (default 1)
         gpu_per_node: GPUs per node (default 1, 0 for CPU)
         packages: Pip packages to install
+        node_selector: Target specific nodes (e.g., {"node-type": "gpu-a100"})
+        tolerations: Schedule on tainted nodes
+        env: Environment variables (e.g., [{"name": "PIP_USER", "value": "1"}])
+        volumes: Add volumes
+        volume_mounts: Mount volumes
         confirmed: True to submit, False for preview
 
     Returns: Preview if confirmed=False, else {job_name, status}
@@ -384,6 +396,7 @@ def run_custom_training(
             return ToolError(
                 error=f"Script validation failed: {reason}",
                 error_code=ErrorCode.VALIDATION_ERROR,
+                hint="Use custom_training_workflow prompt for secure script guidelines, or run_container_training for unrestricted access",
             ).model_dump()
 
         if name:
@@ -391,13 +404,25 @@ def run_custom_training(
             if err:
                 return err.model_dump()
 
-        config = {
+        config: dict[str, Any] = {
             "script": script[:200] + "..." if len(script) > 200 else script,
             "name": name,
             "num_nodes": num_nodes,
             "gpu_per_node": gpu_per_node,
             "packages": packages or [],
         }
+
+        # Add runtime patches to preview if specified
+        if node_selector:
+            config["node_selector"] = node_selector
+        if tolerations:
+            config["tolerations"] = tolerations
+        if env:
+            config["env"] = env
+        if volumes:
+            config["volumes"] = volumes
+        if volume_mounts:
+            config["volume_mounts"] = volume_mounts
 
         if not confirmed:
             return PreviewResponse(
@@ -416,8 +441,17 @@ def run_custom_training(
             resources_per_node={"gpu": gpu_per_node} if gpu_per_node > 0 else None,
         )
 
+        # Build runtime patch options if any patches specified
+        options = _build_runtime_patch(
+            node_selector=node_selector,
+            tolerations=tolerations,
+            env=env,
+            volumes=volumes,
+            volume_mounts=volume_mounts,
+        )
+
         client = get_trainer_client()
-        job_name = client.train(trainer=trainer)
+        job_name = client.train(trainer=trainer, options=options if options else None)
 
         return ToolResponse(
             data={
@@ -441,6 +475,7 @@ def run_custom_training(
             error=error_msg,
             error_code=ErrorCode.SDK_ERROR,
             details=details,
+            hint="Use troubleshooting_guide prompt for diagnosis",
         ).model_dump()
 
 
@@ -548,4 +583,5 @@ def run_container_training(
             error=error_msg,
             error_code=ErrorCode.SDK_ERROR,
             details=details,
+            hint="Use troubleshooting_guide prompt for diagnosis",
         ).model_dump()

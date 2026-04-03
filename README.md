@@ -21,6 +21,7 @@ on Kubernetes — all through natural language.
   - [Installation](#installation)
   - [Configuration](#configuration)
 - [Tools](#tools)
+- [Prompts](#prompts)
 - [CLI](#cli)
 - [Local Agent](#local-agent)
 - [Development](#development)
@@ -169,6 +170,29 @@ Ask: *"How much GPU memory do I need for Llama-3-70B?"*
 ```
 </details>
 
+## Prompts
+
+MCP prompts provide structured guidance for common workflows. MCP clients can discover and use these prompts:
+
+| Prompt | Description |
+|--------|-------------|
+| `fine_tuning_workflow` | Step-by-step guide for fine-tuning LLMs with LoRA |
+| `custom_training_workflow` | Guide for custom scripts or container training |
+| `troubleshooting_guide` | Diagnose and fix common job failures |
+| `resource_planning` | Plan resources before training |
+
+<details>
+<summary><b>Using prompts in MCP clients</b></summary>
+
+MCP clients that support prompts (like Claude Desktop) can list and invoke these prompts directly. The prompts provide detailed, parameterized guidance that helps ensure successful training operations.
+
+Example with parameters:
+
+```
+fine_tuning_workflow(model="meta-llama/Llama-3.2-3B", dataset="tatsu-lab/alpaca")
+```
+</details>
+
 ## CLI
 
 ```bash
@@ -197,18 +221,23 @@ kubeflow-mcp agent --backend ollama --model qwen3:8b
 ![Ollama Agent](assets/ollama-agent-tools.png)
 
 <details>
-<summary><b>Token-efficient modes</b></summary>
+<summary><b>Tool loading modes</b></summary>
 
-| Mode | Tokens | Reduction | Description |
-|------|--------|-----------|-------------|
-| `static` | 838 | baseline | All 16 tools loaded |
-| `progressive` | 85 | -90% | 3 meta-tools for discovery |
-| `semantic` | 69 | -92% | Embedding-based search |
+| Mode | Description |
+|------|-------------|
+| `mcp` | Standard MCP stdio protocol (recommended) |
+| `static` | Direct Python import (fallback) |
+| `progressive` | 3 meta-tools for hierarchical discovery |
+| `semantic` | Embedding-based search |
 
 ```bash
+kubeflow-mcp agent --backend ollama --mode mcp         # Standard MCP protocol (recommended)
+kubeflow-mcp agent --backend ollama --mode static      # Direct import fallback
 kubeflow-mcp agent --backend ollama --mode progressive
-kubeflow-mcp agent --backend ollama --mode semantic  # requires sentence-transformers
+kubeflow-mcp agent --backend ollama --mode semantic    # requires sentence-transformers
 ```
+
+**MCP mode** connects via the same stdio protocol as Cursor and Claude Desktop, ensuring identical behavior and access to all MCP features (tools, prompts, server instructions).
 </details>
 
 <details>

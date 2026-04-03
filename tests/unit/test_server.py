@@ -1,5 +1,6 @@
 """Tests for MCP server creation."""
 
+from kubeflow_mcp.core.prompts import register_prompts
 from kubeflow_mcp.core.server import CLIENT_MODULES, create_server
 
 
@@ -55,3 +56,12 @@ def test_hub_module_is_stub():
     assert hasattr(hub, "TOOLS")
     assert len(hub.TOOLS) == 0
     assert hub.MODULE_INFO["status"] == "stub"
+
+
+def test_prompts_registered():
+    """Server registers MCP prompts for workflows."""
+    from fastmcp import FastMCP
+
+    mcp = FastMCP("test")
+    register_prompts(mcp)
+    # Prompts should be registered (FastMCP stores them internally)

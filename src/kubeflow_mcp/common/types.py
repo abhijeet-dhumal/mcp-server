@@ -33,6 +33,7 @@ class ToolError(BaseModel):
     error: str
     error_code: str | None = None
     details: dict[str, Any] | None = None
+    hint: str | None = None  # Suggest relevant MCP prompt for recovery
 
 
 class PreviewResponse(BaseModel):

@@ -47,11 +47,27 @@ try:
 except ImportError:
     sys.exit("Error: required packages not installed\nRun: uv sync --extra agents")
 
+# Optional MCP client support
+MCP_CLIENT_AVAILABLE = False
+try:
+    from llama_index.tools.mcp import BasicMCPClient, McpToolSpec
+
+    MCP_CLIENT_AVAILABLE = True
+except ImportError:
+    pass  # MCP client optional, fall back to direct imports
+
 from kubeflow_mcp.agents.dynamic_tools import (  # noqa: E402
     get_dynamic_system_prompt,
     get_dynamic_tools,
 )
-from kubeflow_mcp.trainer import TOOLS  # noqa: E402
+
+# Try to import TOOLS directly (fallback mode)
+try:
+    from kubeflow_mcp.trainer import TOOLS  # noqa: E402
+except ImportError:
+    TOOLS = []  # Will use MCP client instead
+
+from kubeflow_mcp.core.server import SERVER_INSTRUCTIONS  # noqa: E402
 
 console = Console()
 
@@ -61,37 +77,96 @@ DEFAULT_URL = "http://localhost:11434"
 # Tool modes for different token budgets
 TOOL_MODES = {
     "static": "All 16 tools loaded (~3K tokens)",
+    "mcp": "Tools loaded via MCP protocol (standardized)",
     "progressive": "3 meta-tools with hierarchical discovery (~500 tokens)",
     "semantic": "2 meta-tools with embedding search (~400 tokens)",
 }
 
-# Full system prompt for static mode
-SYSTEM_PROMPT_FULL = """You are a Kubeflow training assistant. Help users manage ML training jobs on Kubernetes.
-
-When greeted, introduce yourself briefly and offer these options:
-- Check cluster resources (GPUs, nodes)
-- Fine-tune a model (e.g., Llama, Gemma)
-- List training jobs or runtimes
-- Monitor a running job
-
-When the user asks to train or fine-tune a model, execute the workflow:
-1. get_cluster_resources() - check available GPUs
-2. estimate_resources("model-id") - estimate requirements (use "google/gemma-2b" format)
-3. list_runtimes() - check available runtimes
-4. fine_tune(..., confirmed=False) - show preview (use "hf://google/gemma-2b" format)
-5. Wait for user confirmation before submitting
-
-Execute steps 1-4 together. Only pause after showing the preview.
-
-Model ID formats:
-- estimate_resources(): "google/gemma-2b" (no prefix)
-- fine_tune(): "hf://google/gemma-2b" (with hf:// prefix)
-
-If no GPUs (gpu_total=0), use CPU training. If errors occur, explain clearly.
+# Agent-specific additions to server instructions
+AGENT_HINTS = """
+AGENT-SPECIFIC:
+- When greeted, introduce yourself briefly and offer to help with training tasks
+- Model ID formats: estimate_resources() uses "google/gemma-2b", fine_tune() uses "hf://google/gemma-2b"
+- Execute planning steps (1-4) together, only pause after showing the preview
+- If no GPUs (gpu_total=0), suggest CPU training or inform user
 """
 
-# Default to full prompt
+# Use server instructions as base, add agent-specific hints
+SYSTEM_PROMPT_FULL = SERVER_INSTRUCTIONS + AGENT_HINTS
 SYSTEM_PROMPT = SYSTEM_PROMPT_FULL
+
+
+async def create_mcp_stdio_client(
+    server_command: list[str] | None = None,
+) -> tuple[Any, list[FunctionTool], str]:
+    """Create MCP client via stdio protocol (standard MCP approach).
+
+    This spawns the kubeflow-mcp server as a subprocess and connects via stdio,
+    the same way Cursor IDE and Claude Desktop connect. This ensures the local
+    agent uses the exact same protocol and gets identical behavior.
+
+    Args:
+        server_command: Command to start the MCP server.
+                       Default: ["kubeflow-mcp", "serve", "--transport", "stdio"]
+
+    Returns:
+        Tuple of (mcp_client, tools, instructions)
+    """
+    if not MCP_CLIENT_AVAILABLE:
+        raise ImportError("llama-index-tools-mcp not installed. Run: uv sync --extra agents")
+
+    if server_command is None:
+        server_command = ["kubeflow-mcp", "serve", "--transport", "stdio"]
+
+    client = BasicMCPClient(server_command)
+    tool_spec = McpToolSpec(client=client)
+
+    # Get tools from server via MCP protocol
+    tools = await tool_spec.ato_tool_list()
+
+    # Get server instructions (for system prompt)
+    instructions = ""
+    try:
+        # Access the MCP session to get server info
+        if hasattr(client, "session") and client.session:
+            server_info = await client.session.get_server_info()
+            if hasattr(server_info, "instructions") and server_info.instructions:
+                instructions = server_info.instructions
+    except Exception:
+        pass  # Fall back to default prompt
+
+    return client, tools, instructions
+
+
+def create_tools_fallback() -> tuple[list[FunctionTool], str]:
+    """Fallback: Load tools directly (in-process, no MCP protocol).
+
+    Use this only when MCP client is not available or subprocess cannot be spawned.
+    This is NOT the standard approach - prefer create_mcp_stdio_client().
+
+    Returns:
+        Tuple of (tools, instructions)
+    """
+    import asyncio
+
+    from kubeflow_mcp.core.server import SERVER_INSTRUCTIONS, create_server
+
+    mcp = create_server(clients=["trainer"])
+    mcp_tools = asyncio.get_event_loop().run_until_complete(mcp.list_tools())
+
+    tools = []
+    for mcp_tool in mcp_tools:
+        full_tool = asyncio.get_event_loop().run_until_complete(mcp.get_tool(mcp_tool.name))
+        # FastMCP's FunctionTool has .fn attribute with the actual function
+        if full_tool and hasattr(full_tool, "fn") and full_tool.fn:
+            func_tool = FunctionTool.from_defaults(
+                fn=full_tool.fn,  # type: ignore[union-attr]
+                name=mcp_tool.name,
+                description=mcp_tool.description or mcp_tool.name,
+            )
+            tools.append(func_tool)
+
+    return tools, SERVER_INSTRUCTIONS
 
 
 def create_tools(
@@ -101,14 +176,21 @@ def create_tools(
 
     Args:
         mode: Tool loading mode:
-            - "static": All 16 tools (~3K tokens)
+            - "static": All 16 tools via direct import (~3K tokens)
+            - "mcp": Tools loaded via MCP client (standardized)
             - "progressive": 3 meta-tools for hierarchical discovery (~500 tokens)
             - "semantic": 2 meta-tools for embedding search (~400 tokens)
+
+    Note: For MCP mode, use create_mcp_client() async function instead.
     """
     # Dynamic modes use meta-tools
     if mode in ("progressive", "semantic"):
         tool_funcs = get_dynamic_tools(mode)
+    elif mode == "mcp":
+        raise ValueError("Use create_mcp_client() for MCP mode")
     else:
+        if not TOOLS:
+            raise ImportError("TOOLS not available. Use --mode mcp instead.")
         tool_funcs = TOOLS  # type: ignore[assignment]
 
     tools = []
@@ -142,7 +224,8 @@ class OllamaAgent:
     """Ollama agent using LlamaIndex FunctionAgent with thinking support.
 
     Supports multiple tool modes for different context budgets:
-        - "static": All 16 tools (~3K tokens) - best accuracy
+        - "static": All 16 tools via direct import (~3K tokens) - best accuracy
+        - "mcp": Tools loaded via MCP protocol (standardized, recommended)
         - "progressive": 3 meta-tools (~500 tokens) - hierarchical discovery
         - "semantic": 2 meta-tools (~400 tokens) - embedding-based discovery
     """
@@ -152,6 +235,7 @@ class OllamaAgent:
     _thinking_supported: bool | None
     memory: ChatMemoryBuffer | None
     llm: Ollama | None
+    _mcp_client: Any
 
     def __init__(
         self,
@@ -168,11 +252,13 @@ class OllamaAgent:
         self._use_thinking = True  # User preference
         self.memory = None
         self.llm = None
+        self._mcp_client = None  # For MCP mode
 
         # Set system prompt based on mode
         if tool_mode in ("progressive", "semantic"):
             self._system_prompt = get_dynamic_system_prompt(tool_mode)
         else:
+            # For static and mcp modes, use full prompt (mcp may override)
             self._system_prompt = SYSTEM_PROMPT_FULL
 
         # Dedicated event loop in background thread (prevents "Event loop is closed" errors)
@@ -207,19 +293,65 @@ class OllamaAgent:
 
         try:
             # Create tools based on mode
-            self._tools = create_tools(mode=self.tool_mode)
-            self.llm = self._create_llm(with_thinking)
-            # Larger memory for complex workflows (qwen3:8b has 32K context)
-            self.memory = ChatMemoryBuffer.from_defaults(token_limit=16000)
+            if self.tool_mode == "mcp":
+                self._init_mcp_agent(with_thinking)
+            else:
+                self._tools = create_tools(mode=self.tool_mode)
+                self.llm = self._create_llm(with_thinking)
+                # Larger memory for complex workflows (qwen3:8b has 32K context)
+                self.memory = ChatMemoryBuffer.from_defaults(token_limit=16000)
 
-            self._agent = FunctionAgent(
-                tools=self._tools,  # type: ignore[arg-type]
-                llm=self.llm,
-                memory=self.memory,
-                system_prompt=self._system_prompt,
-            )
+                self._agent = FunctionAgent(
+                    tools=self._tools,  # type: ignore[arg-type]
+                    llm=self.llm,
+                    memory=self.memory,
+                    system_prompt=self._system_prompt,
+                )
         finally:
             sys.stderr = old_stderr
+
+    def _init_mcp_agent(self, with_thinking: bool):
+        """Initialize agent via MCP stdio protocol (standard approach).
+
+        Connects to kubeflow-mcp server via stdio, the same way Cursor IDE
+        and Claude Desktop connect. This ensures protocol consistency and
+        access to all MCP features (tools, prompts, resources).
+        """
+        import asyncio
+        import concurrent.futures
+
+        if not MCP_CLIENT_AVAILABLE:
+            # Fallback to in-process if MCP client not available
+            console.print("[yellow]MCP client not available, using fallback mode[/yellow]")
+            self._tools, instructions = create_tools_fallback()
+        else:
+            # Standard MCP stdio connection (same as Cursor/Claude)
+            future = asyncio.run_coroutine_threadsafe(create_mcp_stdio_client(), self._loop)
+            try:
+                self._mcp_client, self._tools, instructions = future.result(timeout=30)
+            except concurrent.futures.TimeoutError as e:
+                raise TimeoutError(
+                    "MCP server connection timed out. "
+                    "Ensure kubeflow-mcp is installed and accessible."
+                ) from e
+            except Exception as e:
+                # Fallback if stdio connection fails
+                console.print(f"[yellow]MCP connection failed ({e}), using fallback[/yellow]")
+                self._tools, instructions = create_tools_fallback()
+
+        # Use server instructions (same as external MCP clients get)
+        if instructions:
+            self._system_prompt = instructions + AGENT_HINTS
+
+        self.llm = self._create_llm(with_thinking)
+        self.memory = ChatMemoryBuffer.from_defaults(token_limit=16000)
+
+        self._agent = FunctionAgent(
+            tools=self._tools,  # type: ignore[arg-type]
+            llm=self.llm,
+            memory=self.memory,
+            system_prompt=self._system_prompt,
+        )
 
     def set_thinking_mode(self, enabled: bool):
         """Toggle thinking mode - recreates LLM but preserves memory."""

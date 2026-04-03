@@ -64,10 +64,12 @@ def get_training_logs(
             return ToolError(
                 error=f"Training job '{name}' not found",
                 error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                hint="Use list_training_jobs to find available jobs",
             ).model_dump()
         return ToolError(
             error=str(e),
             error_code=ErrorCode.SDK_ERROR,
+            hint="Use monitoring_workflow prompt for debugging guidance",
         ).model_dump()
 
 
@@ -105,6 +107,7 @@ def get_training_events(
         return ToolError(
             error=str(e),
             error_code=ErrorCode.SDK_ERROR,
+            hint="Use monitoring_workflow prompt for debugging guidance",
         ).model_dump()
 
 
@@ -147,10 +150,12 @@ def wait_for_training(
                 "status": "Unknown",
                 "reached": False,
                 "message": f"Timeout after {timeout_seconds}s",
+                "hint": "Use get_training_events to check for scheduling issues",
             }
         ).model_dump()
     except Exception as e:
         return ToolError(
             error=str(e),
             error_code=ErrorCode.SDK_ERROR,
+            hint="Use monitoring_workflow prompt for debugging guidance",
         ).model_dump()

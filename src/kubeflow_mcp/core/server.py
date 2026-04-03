@@ -26,7 +26,7 @@ from fastmcp import FastMCP
 
 from kubeflow_mcp.core.health import HealthManager
 from kubeflow_mcp.core.policy import apply_policy_filters, get_allowed_tools
-from kubeflow_mcp.core.resources import register_skill_resources
+from kubeflow_mcp.core.prompts import register_prompts
 
 logger = logging.getLogger(__name__)
 
@@ -191,9 +191,12 @@ IMPORTANT:
 - Training jobs consume GPU resources - be conservative
 - Use get_training_events() to debug stuck/failed jobs
 
-For detailed guides, read the skill resources:
-- trainer://skills/fine-tuning → Fine-tuning workflow
-- trainer://skills/troubleshooting → Error recovery
+PROMPTS (use for detailed guidance):
+- fine_tuning_workflow → Step-by-step fine-tuning guide
+- custom_training_workflow → Custom script/container guide
+- troubleshooting_guide → Diagnose and fix failures
+- resource_planning → Plan resources before training
+- monitoring_workflow → Monitor jobs and debug issues
 """
 
 
@@ -279,7 +282,8 @@ def create_server(
         except ImportError as e:
             logger.error(f"Failed to load client '{client_name}': {e}")
 
-    register_skill_resources(mcp, clients)
+    # Register MCP prompts for structured workflows
+    register_prompts(mcp)
 
     health = HealthManager(mcp)
     health.register_health_tools()
