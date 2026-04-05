@@ -1,0 +1,81 @@
+/* Custom styles for Kubeflow MCP Server docs */
+
+/* Top navigation bar */
+.top-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 1rem;
+    background: transparent;
+}
+
+.top-nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--color-foreground-primary);
+}
+
+.top-nav-brand:hover {
+    text-decoration: none;
+}
+
+.top-nav-logo {
+    width: 28px;
+    height: 28px;
+}
+
+.top-nav-links {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.top-nav-links a {
+    text-decoration: none;
+    color: var(--color-foreground-secondary);
+    font-size: 0.9rem;
+}
+
+.top-nav-links a:hover {
+    color: var(--color-foreground-primary);
+}
+
+/* Announcement banner styling */
+.announcement-content {
+    max-width: none !important;
+    padding: 0 !important;
+}
+
+/* Code block styling */
+.highlight {
+    border-radius: 0.5rem;
+}
+
+/* Table styling */
+table.docutils {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+table.docutils th,
+table.docutils td {
+    padding: 0.75rem;
+    border: 1px solid var(--color-background-border);
+}
+
+/* Grid card styling */
+.sd-card {
+    border-radius: 0.5rem;
+}
+
+/* Admonition styling */
+.admonition {
+    border-radius: 0.5rem;
+}
+
+/* Sidebar styling */
+.sidebar-tree .reference {
+    font-size: 0.95rem;
+}

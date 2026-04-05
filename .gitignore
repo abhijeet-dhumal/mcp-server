@@ -69,3 +69,6 @@ tests/benchmarks/results/*
 
 # Build artifacts
 *.whl
+
+# Documentation build
+docs/_build/
