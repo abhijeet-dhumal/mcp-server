@@ -87,6 +87,7 @@ Model Context Protocol (MCP). Works with Claude, Cursor, and custom agents.
    guide/prompts
    guide/resources
    guide/agents
+   guide/troubleshooting
 
 .. toctree::
    :maxdepth: 2
@@ -103,4 +104,3 @@ Model Context Protocol (MCP). Works with Claude, Cursor, and custom agents.
    :caption: Development
 
    development/contributing
-   development/architecture

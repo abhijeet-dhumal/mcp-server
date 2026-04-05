@@ -29,6 +29,18 @@ Planning
 ``estimate_resources``
    Estimates GPU memory and batch size for a model.
 
+Discovery
+---------
+
+``list_training_jobs``
+   List jobs in namespace, filter by runtime/status.
+
+``get_training_job``
+   Get details of a specific job.
+
+``list_runtimes`` / ``get_runtime`` / ``get_runtime_packages``
+   Explore available ClusterTrainingRuntimes.
+
 Training
 --------
 

@@ -41,8 +41,8 @@ Tool Modes
      - Tokens
      - Description
    * - ``full``
-     - ~900
-     - All 16 tools via MCP
+     - ~200
+     - All 16 tools via MCP (concise descriptions)
    * - ``progressive``
      - ~85
      - 3 meta-tools, hierarchical discovery
