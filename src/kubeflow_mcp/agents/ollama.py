@@ -34,6 +34,9 @@ from typing import Any
 logging.getLogger("httpx").setLevel(logging.ERROR)
 logging.getLogger("llama_index").setLevel(logging.ERROR)
 
+# Check if being imported by Sphinx for documentation
+_SPHINX_BUILD = "sphinx" in sys.modules
+
 try:
     from llama_index.core.agent.workflow import FunctionAgent
     from llama_index.core.memory import ChatMemoryBuffer
@@ -45,7 +48,18 @@ try:
     from rich.table import Table
     from rich.text import Text
 except ImportError:
-    sys.exit("Error: required packages not installed\nRun: uv sync --extra agents")
+    if not _SPHINX_BUILD:
+        sys.exit("Error: required packages not installed\nRun: uv sync --extra agents")
+    # Allow import to continue for autodoc even without dependencies
+    FunctionAgent = None  # type: ignore[misc, assignment]
+    ChatMemoryBuffer = None  # type: ignore[misc, assignment]
+    FunctionTool = None  # type: ignore[misc, assignment]
+    Ollama = None  # type: ignore[misc, assignment]
+    Console = None  # type: ignore[misc, assignment]
+    Markdown = None  # type: ignore[misc, assignment]
+    Panel = None  # type: ignore[misc, assignment]
+    Table = None  # type: ignore[misc, assignment]
+    Text = None  # type: ignore[misc, assignment]
 
 # Optional MCP client support
 MCP_CLIENT_AVAILABLE = False
@@ -71,7 +85,7 @@ from kubeflow_mcp.core.server import SERVER_INSTRUCTIONS  # noqa: E402
 
 console = Console()
 
-DEFAULT_MODEL = "qwen2.5:7b"
+DEFAULT_MODEL = "qwen3:8b"
 DEFAULT_URL = "http://localhost:11434"
 
 # Import tool registries for dynamic counts

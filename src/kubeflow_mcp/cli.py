@@ -129,9 +129,9 @@ def status() -> None:
 )
 @click.option(
     "--mode",
-    default="static",
-    type=click.Choice(["static", "progressive", "semantic"]),
-    help="Tool loading mode",
+    default="full",
+    type=click.Choice(["full", "progressive", "semantic", "static", "mcp"]),
+    help="Tool loading mode (static/mcp are legacy aliases for full)",
 )
 @click.option(
     "--thinking/--no-thinking",
