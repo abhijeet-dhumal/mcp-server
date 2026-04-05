@@ -93,7 +93,7 @@ html_title = "Kubeflow MCP Server"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 
-# Furo theme options
+# Furo theme options with top navigation (matching SDK style)
 html_theme_options = {
     "sidebar_hide_name": False,
     "navigation_with_keys": True,
@@ -101,18 +101,34 @@ html_theme_options = {
     "source_repository": "https://github.com/kubeflow/mcp-server",
     "source_branch": "main",
     "source_directory": "docs/source/",
+    # Top navigation bar with logo (same structure as SDK)
     "announcement": """
         <nav class="top-nav">
             <a href="/index.html" class="top-nav-brand">
+                <svg class="top-nav-logo" width="28" height="28" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="matrix(1.2742 0 0 1.2745 -46.441 11.393)">
+                        <path d="m95.9 62.15 4.1 102.1 73.75-94.12a6.79 6.79 0 0 1 9.6-1.11l46 36.92-15-65.61z" fill="#4279f4"/>
+                        <path d="m102.55 182.98h65.42l-40.17-32.23z" fill="#0028aa"/>
+                        <path d="m180.18 83.92-44 56.14 46.88 37.61 44.47-55.76z" fill="#014bd1"/>
+                        <path d="m83.56 52.3 0.01-0.01 38.69-48.52-62.39 30.05-15.41 67.51z" fill="#bedcff"/>
+                        <path d="m45.32 122.05 41.44 51.96-3.95-98.98z" fill="#6ca1ff"/>
+                        <path d="m202.31 28.73-59.66-28.73-37.13 46.56z" fill="#a1c3ff"/>
+                    </g>
+                </svg>
                 <span>Kubeflow MCP Server</span>
             </a>
             <div class="top-nav-links">
                 <a href="https://github.com/kubeflow/mcp-server">GitHub</a>
                 <a href="https://www.kubeflow.org/docs/about/community/#slack-channels">Slack</a>
+                <a href="https://www.kubeflow.org">Kubeflow</a>
             </div>
         </nav>
     """,
 }
+
+# Logo and favicon
+html_logo = "_static/kubeflow-icon.svg"
+html_favicon = "_static/kubeflow-icon.svg"
 
 # -- Options for intersphinx -------------------------------------------------
 intersphinx_mapping = {
@@ -139,3 +155,29 @@ html_search_options = {
     "type": "default",
     "tokenizer_lang": "porter",
 }
+
+# -- Options for Mermaid diagrams --------------------------------------------
+mermaid_version = "10.6.1"
+mermaid_init_js = """
+mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    themeVariables: {
+        background: '#ffffff',
+        primaryColor: '#dbeafe',
+        primaryTextColor: '#1e3a5f',
+        primaryBorderColor: '#3b82f6',
+        lineColor: '#64748b',
+        secondaryColor: '#f1f5f9',
+        tertiaryColor: '#ffffff',
+        textColor: '#1e293b',
+        mainBkg: '#ffffff',
+        nodeBorder: '#3b82f6',
+        clusterBkg: '#f8fafc',
+        clusterBorder: '#cbd5e1',
+        titleColor: '#0f172a',
+        edgeLabelBackground: '#ffffff',
+        nodeTextColor: '#1e293b'
+    }
+});
+"""
