@@ -2,6 +2,7 @@
 .PHONY: test test-unit test-bench test-cov benchmark
 .PHONY: serve serve-debug serve-http status
 .PHONY: agent agent-progressive agent-semantic
+.PHONY: docs docs-serve docs-clean
 .PHONY: build clean pre-commit
 
 # Default target
@@ -41,6 +42,11 @@ help:
 	@echo "Benchmarks:"
 	@echo "  make benchmark        Generate dashboard (PNG + JSON)"
 	@echo ""
+	@echo "Documentation:"
+	@echo "  make docs             Build HTML documentation"
+	@echo "  make docs-serve       Build and serve docs locally"
+	@echo "  make docs-clean       Remove docs build artifacts"
+	@echo ""
 	@echo "Build:"
 	@echo "  make build            Build wheel package"
 	@echo "  make clean            Remove build artifacts"
@@ -74,11 +80,11 @@ status:
 	uv run kubeflow-mcp status
 
 # Agent (auto-installs agents deps, requires Ollama at localhost:11434)
-OLLAMA_MODEL ?= qwen2.5:7b
+OLLAMA_MODEL ?= qwen3:8b
 
 agent:
 	@uv sync --extra trainer --extra agents --quiet
-	uv run python -m kubeflow_mcp.agents.ollama --model $(OLLAMA_MODEL) --mode static
+	uv run python -m kubeflow_mcp.agents.ollama --model $(OLLAMA_MODEL) --mode full
 
 agent-progressive:
 	@uv sync --extra trainer --extra agents --quiet
@@ -140,8 +146,24 @@ build:
 	uv build
 	@echo "Built packages in dist/"
 
+# Documentation (auto-installs docs deps)
+docs:
+	@uv sync --extra docs --extra trainer --extra agents --quiet
+	@echo "Building documentation..."
+	uv run sphinx-build -b html docs/source docs/_build/html
+	@echo ""
+	@echo "Documentation built: docs/_build/html/index.html"
+
+docs-serve: docs
+	@echo "Serving docs at http://localhost:8000"
+	@cd docs/_build/html && python -m http.server 8000
+
+docs-clean:
+	rm -rf docs/_build
+	@echo "Cleaned docs build artifacts"
+
 # Cleanup
-clean:
+clean: docs-clean
 	rm -rf .pytest_cache .mypy_cache .ruff_cache .coverage htmlcov
 	rm -rf dist build *.egg-info
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
