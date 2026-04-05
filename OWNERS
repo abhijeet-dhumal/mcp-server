@@ -2,13 +2,15 @@
 #
 # See https://www.kubernetes.dev/docs/guide/owners/ for format details.
 # This file determines who can approve PRs.
+#
+# WG: ML Experience (https://github.com/kubeflow/community/tree/master/wg-ml-experience)
 
 approvers:
   - abhijeet-dhumal
-  # TODO: Add more approvers
+  - andreyvelich
+  - ederign
 
 reviewers:
   - abhijeet-dhumal
-  # TODO: Add more reviewers
 
 # Component-specific owners can be defined in subdirectory OWNERS files
