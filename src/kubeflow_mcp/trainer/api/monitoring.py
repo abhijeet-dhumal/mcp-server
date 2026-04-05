@@ -98,7 +98,8 @@ def get_training_events(
         dict: Response containing:
 
         - ``job`` (str): Job name
-        - ``events`` (list): Events with ``type``, ``reason``, ``message``
+        - ``events`` (list): Events with SDK fields: ``involved_object_kind``,
+          ``involved_object_name``, ``reason``, ``message``, ``event_time``
         - ``total`` (int): Total event count
     """
     try:
@@ -107,11 +108,18 @@ def get_training_events(
 
         event_list = []
         for event in events[:limit]:
+            et = getattr(event, "event_time", None)
+            if et is not None and hasattr(et, "isoformat"):
+                event_time_str = et.isoformat()
+            else:
+                event_time_str = str(et) if et is not None else ""
             event_list.append(
                 {
-                    "type": event.type if hasattr(event, "type") else "Unknown",
+                    "involved_object_kind": getattr(event, "involved_object_kind", "") or "",
+                    "involved_object_name": getattr(event, "involved_object_name", "") or "",
                     "reason": event.reason if hasattr(event, "reason") else "",
                     "message": event.message if hasattr(event, "message") else "",
+                    "event_time": event_time_str,
                 }
             )
 

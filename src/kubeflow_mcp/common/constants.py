@@ -39,13 +39,18 @@ class ErrorCode:
 
 
 class JobStatus:
-    """Training job status constants."""
+    """TrainJob status strings (Kubeflow Trainer SDK / CR conditions).
 
-    PENDING = "Pending"
+    Pod phase ``Succeeded`` is not the same as TrainJob ``Complete``; use
+    :attr:`POD_SUCCEEDED` only when referring to pod-level state.
+    """
+
+    CREATED = "Created"
     RUNNING = "Running"
-    SUCCEEDED = "Succeeded"
+    COMPLETE = "Complete"
     FAILED = "Failed"
     SUSPENDED = "Suspended"
+    POD_SUCCEEDED = "Succeeded"
 
 
 # =============================================================================

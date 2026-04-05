@@ -27,6 +27,21 @@ from kubeflow_mcp.common.constants import ErrorCode
 from kubeflow_mcp.common.types import ToolError, ToolResponse
 from kubeflow_mcp.common.utils import get_trainer_client
 
+# Legacy filter/docs used "Succeeded" for finished TrainJobs; SDK uses "Complete".
+_JOB_STATUS_FILTER_ALIASES: dict[str, str] = {
+    "Succeeded": "Complete",
+}
+
+
+def _trainjob_runtime_to_mcp(runtime: object | None) -> dict[str, str] | None:
+    """Serialize SDK Runtime for MCP JSON (avoid passing raw objects)."""
+    if runtime is None:
+        return None
+    name = getattr(runtime, "name", None)
+    if isinstance(name, str) and name:
+        return {"name": name}
+    return None
+
 
 def list_training_jobs(
     runtime: str | None = None,
@@ -37,8 +52,8 @@ def list_training_jobs(
 
     Args:
         runtime: Filter by ClusterTrainingRuntime name (e.g., ``torch-tune``).
-        status: Filter by job status. One of: ``Running``, ``Succeeded``,
-            ``Failed``, ``Pending``, ``Suspended``.
+        status: Filter by TrainJob status: ``Created``, ``Running``, ``Complete``,
+            ``Failed``, ``Suspended``. ``Succeeded`` is accepted as an alias for ``Complete``.
         limit: Maximum jobs to return. Defaults to 50.
 
     Returns:
@@ -53,19 +68,25 @@ def list_training_jobs(
     """
     try:
         client = get_trainer_client()
-        jobs = client.list_jobs(runtime=runtime) if runtime else client.list_jobs()  # type: ignore[arg-type]
+        if runtime:
+            rt_obj = client.get_runtime(name=runtime)
+            jobs = client.list_jobs(runtime=rt_obj)
+        else:
+            jobs = client.list_jobs()
 
         job_list = []
         for job in jobs:
+            jr = job.runtime if hasattr(job, "runtime") else None
             job_data = {
                 "name": job.name,
                 "status": job.status if hasattr(job, "status") else "Unknown",
-                "runtime": job.runtime if hasattr(job, "runtime") else None,
+                "runtime": _trainjob_runtime_to_mcp(jr),
             }
             job_list.append(job_data)
 
         if status:
-            job_list = [j for j in job_list if j.get("status") == status]
+            want = _JOB_STATUS_FILTER_ALIASES.get(status, status)
+            job_list = [j for j in job_list if j.get("status") == want]
 
         return ToolResponse(data={"jobs": job_list[:limit], "total": len(job_list)}).model_dump()
 
@@ -92,11 +113,12 @@ def get_training_job(name: str) -> dict[str, Any]:
         client = get_trainer_client()
         job = client.get_job(name=name)
 
+        jr = job.runtime if hasattr(job, "runtime") else None
         return ToolResponse(
             data={
                 "name": job.name,
                 "status": job.status if hasattr(job, "status") else "Unknown",
-                "runtime": job.runtime if hasattr(job, "runtime") else None,
+                "runtime": _trainjob_runtime_to_mcp(jr),
             }
         ).model_dump()
 

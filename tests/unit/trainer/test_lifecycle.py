@@ -5,6 +5,8 @@ Tests delete_training_job (SDK), suspend_training_job (K8s), resume_training_job
 
 from unittest.mock import MagicMock, patch
 
+from kubeflow.trainer.constants import constants as trainer_constants
+
 from kubeflow_mcp.trainer.api.lifecycle import (
     delete_training_job,
     resume_training_job,
@@ -15,7 +17,7 @@ from kubeflow_mcp.trainer.api.lifecycle import (
 class TestDeleteTrainingJob:
     """Tests for delete_training_job() - uses SDK."""
 
-    @patch("kubeflow_mcp.trainer.api.lifecycle.get_trainer_client")
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
     def test_delete_success(self, mock_get_client):
         """Test successful job deletion."""
         mock_client = MagicMock()
@@ -29,7 +31,7 @@ class TestDeleteTrainingJob:
         assert result["data"]["deleted"] is True
         mock_client.delete_job.assert_called_once_with(name="my-job")
 
-    @patch("kubeflow_mcp.trainer.api.lifecycle.get_trainer_client")
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
     def test_delete_not_found(self, mock_get_client):
         """Test deleting non-existent job."""
         mock_client = MagicMock()
@@ -42,7 +44,7 @@ class TestDeleteTrainingJob:
         assert "not found" in result["error"].lower()
         assert result["error_code"] == "RESOURCE_NOT_FOUND"
 
-    @patch("kubeflow_mcp.trainer.api.lifecycle.get_trainer_client")
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
     def test_delete_sdk_error(self, mock_get_client):
         """Test SDK error handling."""
         mock_client = MagicMock()
@@ -55,16 +57,25 @@ class TestDeleteTrainingJob:
         assert "Permission denied" in result["error"]
 
 
-class TestSuspendTrainingJob:
-    """Tests for suspend_training_job() - uses K8s API directly."""
+def _make_k8s_backend_mock(namespace: str = "default"):
+    mock_api = MagicMock()
+    mock_backend = MagicMock()
+    mock_backend.namespace = namespace
+    mock_backend.custom_api = mock_api
+    mock_client = MagicMock()
+    mock_client.backend = mock_backend
+    return mock_client, mock_api
 
-    @patch("kubernetes.config.load_config")
-    @patch("kubernetes.client.CustomObjectsApi")
-    def test_suspend_success(self, mock_custom_api, mock_load_config):
+
+class TestSuspendTrainingJob:
+    """Tests for suspend_training_job() - uses SDK Kubernetes CustomObjects API."""
+
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
+    def test_suspend_success(self, mock_get_client):
         """Test successful job suspension."""
-        mock_api = MagicMock()
-        mock_custom_api.return_value = mock_api
+        mock_client, mock_api = _make_k8s_backend_mock()
         mock_api.patch_namespaced_custom_object.return_value = {"status": "patched"}
+        mock_get_client.return_value = mock_client
 
         result = suspend_training_job(name="my-job")
 
@@ -73,23 +84,21 @@ class TestSuspendTrainingJob:
         assert result["data"]["suspended"] is True
         assert result["data"]["namespace"] == "default"
 
-        # Verify correct K8s API call
         mock_api.patch_namespaced_custom_object.assert_called_once_with(
-            group="kubeflow.org",
-            version="v1",
+            group=trainer_constants.GROUP,
+            version=trainer_constants.VERSION,
             namespace="default",
-            plural="trainjobs",
+            plural=trainer_constants.TRAINJOB_PLURAL,
             name="my-job",
             body={"spec": {"suspend": True}},
             _request_timeout=5,
         )
 
-    @patch("kubernetes.config.load_config")
-    @patch("kubernetes.client.CustomObjectsApi")
-    def test_suspend_custom_namespace(self, mock_custom_api, mock_load_config):
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
+    def test_suspend_custom_namespace(self, mock_get_client):
         """Test suspension in custom namespace."""
-        mock_api = MagicMock()
-        mock_custom_api.return_value = mock_api
+        mock_client, mock_api = _make_k8s_backend_mock(namespace="sandbox")
+        mock_get_client.return_value = mock_client
 
         result = suspend_training_job(name="my-job", namespace="ml-team")
 
@@ -99,15 +108,14 @@ class TestSuspendTrainingJob:
         call_kwargs = mock_api.patch_namespaced_custom_object.call_args[1]
         assert call_kwargs["namespace"] == "ml-team"
 
-    @patch("kubernetes.config.load_config")
-    @patch("kubernetes.client.CustomObjectsApi")
-    def test_suspend_not_found(self, mock_custom_api, mock_load_config):
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
+    def test_suspend_not_found(self, mock_get_client):
         """Test suspending non-existent job."""
-        mock_api = MagicMock()
-        mock_custom_api.return_value = mock_api
+        mock_client, mock_api = _make_k8s_backend_mock()
         mock_api.patch_namespaced_custom_object.side_effect = Exception(
-            "trainjobs.kubeflow.org 'missing' not found"
+            "trainjobs.trainer.kubeflow.org 'missing' not found"
         )
+        mock_get_client.return_value = mock_client
 
         result = suspend_training_job(name="missing")
 
@@ -115,45 +123,42 @@ class TestSuspendTrainingJob:
         assert "not found" in result["error"].lower()
         assert result["error_code"] == "RESOURCE_NOT_FOUND"
 
-    @patch("kubernetes.config.load_config")
-    @patch("kubernetes.client.CustomObjectsApi")
-    def test_suspend_k8s_error(self, mock_custom_api, mock_load_config):
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
+    def test_suspend_k8s_error(self, mock_get_client):
         """Test K8s API error handling."""
-        mock_api = MagicMock()
-        mock_custom_api.return_value = mock_api
+        mock_client, mock_api = _make_k8s_backend_mock()
         mock_api.patch_namespaced_custom_object.side_effect = Exception("Forbidden")
+        mock_get_client.return_value = mock_client
 
         result = suspend_training_job(name="my-job")
 
         assert result["success"] is False
         assert "Forbidden" in result["error"]
 
-    @patch("kubernetes.config.load_config")
-    @patch("kubernetes.client.CustomObjectsApi")
-    def test_suspend_verifies_patch_body(self, mock_custom_api, mock_load_config):
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
+    def test_suspend_verifies_patch_body(self, mock_get_client):
         """Test that suspend patch body is correct."""
-        mock_api = MagicMock()
-        mock_custom_api.return_value = mock_api
+        mock_client, mock_api = _make_k8s_backend_mock()
+        mock_get_client.return_value = mock_client
 
         suspend_training_job(name="my-job")
 
         call_kwargs = mock_api.patch_namespaced_custom_object.call_args[1]
         assert call_kwargs["body"] == {"spec": {"suspend": True}}
-        assert call_kwargs["group"] == "kubeflow.org"
-        assert call_kwargs["version"] == "v1"
-        assert call_kwargs["plural"] == "trainjobs"
+        assert call_kwargs["group"] == trainer_constants.GROUP
+        assert call_kwargs["version"] == trainer_constants.VERSION
+        assert call_kwargs["plural"] == trainer_constants.TRAINJOB_PLURAL
 
 
 class TestResumeTrainingJob:
-    """Tests for resume_training_job() - uses K8s API directly."""
+    """Tests for resume_training_job() - uses SDK Kubernetes CustomObjects API."""
 
-    @patch("kubernetes.config.load_config")
-    @patch("kubernetes.client.CustomObjectsApi")
-    def test_resume_success(self, mock_custom_api, mock_load_config):
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
+    def test_resume_success(self, mock_get_client):
         """Test successful job resumption."""
-        mock_api = MagicMock()
-        mock_custom_api.return_value = mock_api
+        mock_client, mock_api = _make_k8s_backend_mock()
         mock_api.patch_namespaced_custom_object.return_value = {"status": "patched"}
+        mock_get_client.return_value = mock_client
 
         result = resume_training_job(name="my-job")
 
@@ -161,50 +166,46 @@ class TestResumeTrainingJob:
         assert result["data"]["job"] == "my-job"
         assert result["data"]["resumed"] is True
 
-        # Verify correct K8s API call - suspend: False to resume
         mock_api.patch_namespaced_custom_object.assert_called_once_with(
-            group="kubeflow.org",
-            version="v1",
+            group=trainer_constants.GROUP,
+            version=trainer_constants.VERSION,
             namespace="default",
-            plural="trainjobs",
+            plural=trainer_constants.TRAINJOB_PLURAL,
             name="my-job",
             body={"spec": {"suspend": False}},
             _request_timeout=5,
         )
 
-    @patch("kubernetes.config.load_config")
-    @patch("kubernetes.client.CustomObjectsApi")
-    def test_resume_custom_namespace(self, mock_custom_api, mock_load_config):
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
+    def test_resume_custom_namespace(self, mock_get_client):
         """Test resumption in custom namespace."""
-        mock_api = MagicMock()
-        mock_custom_api.return_value = mock_api
+        mock_client, mock_api = _make_k8s_backend_mock()
+        mock_get_client.return_value = mock_client
 
         result = resume_training_job(name="my-job", namespace="prod")
 
         assert result["success"] is True
         assert result["data"]["namespace"] == "prod"
 
-    @patch("kubernetes.config.load_config")
-    @patch("kubernetes.client.CustomObjectsApi")
-    def test_resume_not_found(self, mock_custom_api, mock_load_config):
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
+    def test_resume_not_found(self, mock_get_client):
         """Test resuming non-existent job."""
-        mock_api = MagicMock()
-        mock_custom_api.return_value = mock_api
+        mock_client, mock_api = _make_k8s_backend_mock()
         mock_api.patch_namespaced_custom_object.side_effect = Exception(
-            "trainjobs.kubeflow.org 'missing' not found"
+            "trainjobs.trainer.kubeflow.org 'missing' not found"
         )
+        mock_get_client.return_value = mock_client
 
         result = resume_training_job(name="missing")
 
         assert result["success"] is False
         assert "not found" in result["error"].lower()
 
-    @patch("kubernetes.config.load_config")
-    @patch("kubernetes.client.CustomObjectsApi")
-    def test_resume_verifies_patch_body(self, mock_custom_api, mock_load_config):
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
+    def test_resume_verifies_patch_body(self, mock_get_client):
         """Test that resume patch body is correct (suspend: False)."""
-        mock_api = MagicMock()
-        mock_custom_api.return_value = mock_api
+        mock_client, mock_api = _make_k8s_backend_mock()
+        mock_get_client.return_value = mock_client
 
         resume_training_job(name="my-job")
 
@@ -213,38 +214,35 @@ class TestResumeTrainingJob:
 
 
 class TestK8sApiContract:
-    """Tests that verify K8s API contract for TrainJob CRD."""
+    """Tests that verify K8s API contract for TrainJob CRD (Trainer v2)."""
 
-    @patch("kubernetes.config.load_config")
-    @patch("kubernetes.client.CustomObjectsApi")
-    def test_trainjob_crd_group(self, mock_custom_api, mock_load_config):
-        """Verify TrainJob CRD group is kubeflow.org."""
-        mock_api = MagicMock()
-        mock_custom_api.return_value = mock_api
-
-        suspend_training_job(name="test")
-
-        call_kwargs = mock_api.patch_namespaced_custom_object.call_args[1]
-        assert call_kwargs["group"] == "kubeflow.org"
-
-    @patch("kubernetes.config.load_config")
-    @patch("kubernetes.client.CustomObjectsApi")
-    def test_trainjob_crd_version(self, mock_custom_api, mock_load_config):
-        """Verify TrainJob CRD version is v1."""
-        mock_api = MagicMock()
-        mock_custom_api.return_value = mock_api
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
+    def test_trainjob_crd_group(self, mock_get_client):
+        """Verify TrainJob CRD group matches Kubeflow Trainer SDK."""
+        mock_client, mock_api = _make_k8s_backend_mock()
+        mock_get_client.return_value = mock_client
 
         suspend_training_job(name="test")
 
         call_kwargs = mock_api.patch_namespaced_custom_object.call_args[1]
-        assert call_kwargs["version"] == "v1"
+        assert call_kwargs["group"] == "trainer.kubeflow.org"
 
-    @patch("kubernetes.config.load_config")
-    @patch("kubernetes.client.CustomObjectsApi")
-    def test_trainjob_crd_plural(self, mock_custom_api, mock_load_config):
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
+    def test_trainjob_crd_version(self, mock_get_client):
+        """Verify TrainJob CRD version is v1alpha1."""
+        mock_client, mock_api = _make_k8s_backend_mock()
+        mock_get_client.return_value = mock_client
+
+        suspend_training_job(name="test")
+
+        call_kwargs = mock_api.patch_namespaced_custom_object.call_args[1]
+        assert call_kwargs["version"] == "v1alpha1"
+
+    @patch("kubeflow_mcp.common.utils.get_trainer_client")
+    def test_trainjob_crd_plural(self, mock_get_client):
         """Verify TrainJob CRD plural is trainjobs."""
-        mock_api = MagicMock()
-        mock_custom_api.return_value = mock_api
+        mock_client, mock_api = _make_k8s_backend_mock()
+        mock_get_client.return_value = mock_client
 
         suspend_training_job(name="test")
 

@@ -94,8 +94,11 @@ kind: Role
 metadata:
   name: kubeflow-mcp-role
 rules:
-  - apiGroups: ["kubeflow.org"]
-    resources: ["trainjobs", "trainingruntimes"]
+  - apiGroups: ["trainer.kubeflow.org"]
+    resources:
+      - trainjobs
+      - trainingruntimes
+      - clustertrainingruntimes
     verbs: ["get", "list", "create", "delete", "patch"]
   - apiGroups: [""]
     resources: ["pods", "pods/log", "events"]

@@ -62,6 +62,35 @@ def get_custom_objects_api() -> "k8s_client.CustomObjectsApi":
     return client.CustomObjectsApi(api_client)
 
 
+def get_trainer_effective_namespace(namespace: str | None = None) -> str:
+    """Namespace for TrainJob operations: explicit arg, then SDK backend, else ``default``.
+
+    Aligns direct CustomObjects calls with :class:`TrainerClient` (Kubernetes backend).
+    """
+    if namespace:
+        return namespace
+    client = get_trainer_client()
+    backend = client.backend
+    ns = getattr(backend, "namespace", None)
+    if ns is not None:
+        return str(ns)
+    return "default"
+
+
+def get_trainer_custom_objects_api() -> "k8s_client.CustomObjectsApi":
+    """CustomObjectsApi from the SDK Kubernetes backend when available.
+
+    Falls back to :func:`get_custom_objects_api` for non-Kubernetes backends
+    (e.g. local process), so suspend/resume still use a configured client.
+    """
+    client = get_trainer_client()
+    backend = client.backend
+    custom = getattr(backend, "custom_api", None)
+    if custom is not None:
+        return custom
+    return get_custom_objects_api()
+
+
 @lru_cache(maxsize=1)
 def get_trainer_client() -> TrainerClient:
     """Get or create TrainerClient singleton.

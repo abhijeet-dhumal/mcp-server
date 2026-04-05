@@ -196,11 +196,13 @@ class TestSDKAPISignatures:
         assert "str" in runtime_hint or "Runtime" in runtime_hint
 
     def test_trainer_client_list_jobs_signature(self):
-        """Verify list_jobs() signature."""
+        """Verify list_jobs() takes optional Runtime (not a runtime name string)."""
         sig = inspect.signature(TrainerClient.list_jobs)
         params = list(sig.parameters.keys())
 
         assert "runtime" in params
+        hints = get_type_hints(TrainerClient.list_jobs)
+        assert hints.get("runtime") == sdk_types.Runtime | None
 
     def test_trainer_client_get_job_signature(self):
         """Verify get_job() accepts name parameter."""

@@ -22,9 +22,11 @@ Maps to TrainerClient methods (SDK 0.4.0):
 
 from typing import Any
 
+from kubeflow.trainer.constants import constants as trainer_constants
+
+from kubeflow_mcp.common import utils as mcp_utils
 from kubeflow_mcp.common.constants import ErrorCode
 from kubeflow_mcp.common.types import ToolError, ToolResponse
-from kubeflow_mcp.common.utils import get_trainer_client
 
 
 def delete_training_job(name: str) -> dict[str, Any]:
@@ -45,7 +47,7 @@ def delete_training_job(name: str) -> dict[str, Any]:
         Requires confirmation in MCP clients - accidental deletion prevented.
     """
     try:
-        client = get_trainer_client()
+        client = mcp_utils.get_trainer_client()
         client.delete_job(name=name)
 
         return ToolResponse(
@@ -78,7 +80,7 @@ def suspend_training_job(
 
     Args:
         name: TrainJob name.
-        namespace: K8s namespace. Defaults to kubeconfig context.
+        namespace: K8s namespace. When omitted, uses the same namespace as ``TrainerClient``.
 
     Returns:
         dict: Response containing ``job``, ``namespace``, ``suspended`` (bool), ``message``.
@@ -87,20 +89,18 @@ def suspend_training_job(
         ToolError: If job not found (``RESOURCE_NOT_FOUND``).
     """
     try:
-        from kubeflow_mcp.common.utils import K8S_TIMEOUT, get_custom_objects_api
-
-        api = get_custom_objects_api()
-        ns = namespace or "default"
+        api = mcp_utils.get_trainer_custom_objects_api()
+        ns = mcp_utils.get_trainer_effective_namespace(namespace)
         body = {"spec": {"suspend": True}}
 
         api.patch_namespaced_custom_object(
-            group="kubeflow.org",
-            version="v1",
+            group=trainer_constants.GROUP,
+            version=trainer_constants.VERSION,
             namespace=ns,
-            plural="trainjobs",
+            plural=trainer_constants.TRAINJOB_PLURAL,
             name=name,
             body=body,
-            _request_timeout=K8S_TIMEOUT,
+            _request_timeout=mcp_utils.K8S_TIMEOUT,
         )
 
         return ToolResponse(
@@ -132,7 +132,7 @@ def resume_training_job(
 
     Args:
         name: TrainJob name.
-        namespace: K8s namespace. Defaults to kubeconfig context.
+        namespace: K8s namespace. When omitted, uses the same namespace as ``TrainerClient``.
 
     Returns:
         dict: Response containing ``job``, ``namespace``, ``resumed`` (bool), ``message``.
@@ -141,20 +141,18 @@ def resume_training_job(
         ToolError: If job not found (``RESOURCE_NOT_FOUND``).
     """
     try:
-        from kubeflow_mcp.common.utils import K8S_TIMEOUT, get_custom_objects_api
-
-        api = get_custom_objects_api()
-        ns = namespace or "default"
+        api = mcp_utils.get_trainer_custom_objects_api()
+        ns = mcp_utils.get_trainer_effective_namespace(namespace)
         body = {"spec": {"suspend": False}}
 
         api.patch_namespaced_custom_object(
-            group="kubeflow.org",
-            version="v1",
+            group=trainer_constants.GROUP,
+            version=trainer_constants.VERSION,
             namespace=ns,
-            plural="trainjobs",
+            plural=trainer_constants.TRAINJOB_PLURAL,
             name=name,
             body=body,
-            _request_timeout=K8S_TIMEOUT,
+            _request_timeout=mcp_utils.K8S_TIMEOUT,
         )
 
         return ToolResponse(

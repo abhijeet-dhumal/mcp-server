@@ -178,6 +178,8 @@ git commit --amend -s
 
 This adds a `Signed-off-by: Your Name <your@email.com>` line to your commit message.
 
+Pull requests are checked in CI (`.github/workflows/dco.yaml`): every commit in the PR must contain a `Signed-off-by` trailer (merge commits are skipped).
+
 ### Apache 2.0 License Headers
 
 New source files must include the Apache 2.0 license header:

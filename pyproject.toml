@@ -39,8 +39,11 @@ dependencies = [
 trainer = ["kubeflow>=0.4.0", "huggingface_hub>=0.20"]
 optimizer = ["kubeflow-katib>=0.17.0"]
 hub = ["model-registry>=0.2.0"]
+# Legacy TFJob / MPIJob stack (not the Kubeflow Trainer v2 SDK in [trainer])
+legacy_training = ["kubeflow-training>=1.8.0"]
 all = [
-    "kubeflow-training>=1.8.0",
+    "kubeflow>=0.4.0",
+    "huggingface_hub>=0.20",
     "kubeflow-katib>=0.17.0",
     "model-registry>=0.2.0",
 ]
@@ -48,6 +51,7 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-cov>=4.0",
+    "pytest-timeout>=2.3",
     "ruff>=0.4",
     "mypy>=1.10",
     "types-PyYAML>=6.0",
@@ -87,7 +91,7 @@ packages = ["src/kubeflow_mcp"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --timeout=180"
 
 [tool.ruff]
 target-version = "py310"

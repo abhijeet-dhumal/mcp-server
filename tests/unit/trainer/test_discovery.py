@@ -16,15 +16,6 @@ from kubeflow_mcp.trainer.api.discovery import (
 
 
 @dataclass
-class MockTrainJob:
-    """Mock TrainJob matching SDK's types.TrainJob."""
-
-    name: str
-    status: str = "Running"
-    runtime: str = "torch-distributed"
-
-
-@dataclass
 class MockRuntimeTrainer:
     """Mock RuntimeTrainer."""
 
@@ -38,11 +29,24 @@ class MockRuntime:
     """Mock Runtime matching SDK's types.Runtime."""
 
     name: str
-    trainer: MockRuntimeTrainer = None
+    trainer: MockRuntimeTrainer | None = None
 
     def __post_init__(self):
         if self.trainer is None:
             self.trainer = MockRuntimeTrainer()
+
+
+@dataclass
+class MockTrainJob:
+    """Mock TrainJob matching SDK's types.TrainJob."""
+
+    name: str
+    status: str = "Running"
+    runtime: MockRuntime | None = None
+
+    def __post_init__(self):
+        if self.runtime is None:
+            self.runtime = MockRuntime(name="torch-distributed")
 
 
 class TestListTrainingJobs:
@@ -54,7 +58,7 @@ class TestListTrainingJobs:
         mock_client = MagicMock()
         mock_client.list_jobs.return_value = [
             MockTrainJob(name="job-1", status="Running"),
-            MockTrainJob(name="job-2", status="Succeeded"),
+            MockTrainJob(name="job-2", status="Complete"),
             MockTrainJob(name="job-3", status="Failed"),
         ]
         mock_get_client.return_value = mock_client
@@ -66,6 +70,7 @@ class TestListTrainingJobs:
         assert result["data"]["total"] == 3
         assert result["data"]["jobs"][0]["name"] == "job-1"
         assert result["data"]["jobs"][0]["status"] == "Running"
+        assert result["data"]["jobs"][0]["runtime"] == {"name": "torch-distributed"}
 
     @patch("kubeflow_mcp.trainer.api.discovery.get_trainer_client")
     def test_list_jobs_with_status_filter(self, mock_get_client):
@@ -73,7 +78,7 @@ class TestListTrainingJobs:
         mock_client = MagicMock()
         mock_client.list_jobs.return_value = [
             MockTrainJob(name="job-1", status="Running"),
-            MockTrainJob(name="job-2", status="Succeeded"),
+            MockTrainJob(name="job-2", status="Complete"),
             MockTrainJob(name="job-3", status="Running"),
         ]
         mock_get_client.return_value = mock_client
@@ -83,6 +88,21 @@ class TestListTrainingJobs:
         assert result["success"] is True
         assert len(result["data"]["jobs"]) == 2
         assert all(j["status"] == "Running" for j in result["data"]["jobs"])
+
+    @patch("kubeflow_mcp.trainer.api.discovery.get_trainer_client")
+    def test_list_jobs_status_alias_succeeded_to_complete(self, mock_get_client):
+        """Legacy 'Succeeded' filter matches SDK Complete status."""
+        mock_client = MagicMock()
+        mock_client.list_jobs.return_value = [
+            MockTrainJob(name="job-1", status="Complete"),
+        ]
+        mock_get_client.return_value = mock_client
+
+        result = list_training_jobs(status="Succeeded")
+
+        assert result["success"] is True
+        assert len(result["data"]["jobs"]) == 1
+        assert result["data"]["jobs"][0]["name"] == "job-1"
 
     @patch("kubeflow_mcp.trainer.api.discovery.get_trainer_client")
     def test_list_jobs_with_limit(self, mock_get_client):
@@ -99,14 +119,17 @@ class TestListTrainingJobs:
 
     @patch("kubeflow_mcp.trainer.api.discovery.get_trainer_client")
     def test_list_jobs_with_runtime_filter(self, mock_get_client):
-        """Test filtering by runtime passes to SDK."""
+        """Test filtering by runtime resolves name to Runtime for list_jobs."""
         mock_client = MagicMock()
+        rt = MockRuntime(name="torch-tune")
+        mock_client.get_runtime.return_value = rt
         mock_client.list_jobs.return_value = []
         mock_get_client.return_value = mock_client
 
         list_training_jobs(runtime="torch-tune")
 
-        mock_client.list_jobs.assert_called_once_with(runtime="torch-tune")
+        mock_client.get_runtime.assert_called_once_with(name="torch-tune")
+        mock_client.list_jobs.assert_called_once_with(runtime=rt)
 
     @patch("kubeflow_mcp.trainer.api.discovery.get_trainer_client")
     def test_list_jobs_empty(self, mock_get_client):
@@ -142,7 +165,9 @@ class TestGetTrainingJob:
         """Test getting a job by name."""
         mock_client = MagicMock()
         mock_client.get_job.return_value = MockTrainJob(
-            name="my-job", status="Running", runtime="torch-tune"
+            name="my-job",
+            status="Running",
+            runtime=MockRuntime(name="torch-tune"),
         )
         mock_get_client.return_value = mock_client
 
@@ -151,6 +176,7 @@ class TestGetTrainingJob:
         assert result["success"] is True
         assert result["data"]["name"] == "my-job"
         assert result["data"]["status"] == "Running"
+        assert result["data"]["runtime"] == {"name": "torch-tune"}
         mock_client.get_job.assert_called_once_with(name="my-job")
 
     @patch("kubeflow_mcp.trainer.api.discovery.get_trainer_client")

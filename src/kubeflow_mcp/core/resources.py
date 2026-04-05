@@ -226,10 +226,10 @@ get_training_logs(name="job-name")     # Container logs
 
 | Status | Action |
 |--------|--------|
-| Pending | Check events for scheduling issues |
+| Created | Check events for scheduling issues |
 | Running | Check logs for progress |
 | Failed | Check logs for error |
-| Succeeded | Done! |
+| Complete | Done! |
 
 ## Common Errors
 

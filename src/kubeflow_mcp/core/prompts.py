@@ -286,9 +286,9 @@ Use run_container_training() if you need system access.
 
 | Status | Meaning | Action |
 |--------|---------|--------|
-| Pending | Waiting for resources | Check events |
+| Created | Job created / starting | Check events |
 | Running | Training in progress | Check logs |
-| Succeeded | Completed | Done |
+| Complete | TrainJob finished successfully | Done |
 | Failed | Crashed | Check logs |
 | Suspended | Paused | resume_training_job() |
 
@@ -466,7 +466,7 @@ get_training_job(name="{job_display}")
 ```
 
 Key fields:
-- status: Current state (Pending, Running, Succeeded, Failed)
+- status: Current state (Created, Running, Complete, Failed)
 - start_time: When job started
 - completion_time: When job finished (if done)
 

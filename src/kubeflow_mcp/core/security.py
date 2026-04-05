@@ -88,9 +88,14 @@ def check_namespace_allowed(namespace: str | None) -> ToolError | None:
 
 
 def is_safe_python_code(code: str) -> tuple[bool, str]:
-    """Check if Python code is safe to execute.
+    """Heuristic scan for obviously risky patterns (not a sandbox).
 
-    Returns (is_safe, reason).
+    This does **not** execute or confine code; it only flags common dangerous
+    constructs before submission. Do not treat a ``True`` result as security
+    approval for running untrusted code.
+
+    Returns:
+        ``(is_safe, reason)`` where reason explains the first match or ``"OK"``.
     """
     dangerous_patterns = [
         "import os",

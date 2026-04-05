@@ -7,6 +7,13 @@ from pathlib import Path
 
 import pytest
 
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Benchmark modules are not bound by the unit-suite default timeout."""
+    for item in items:
+        if "/benchmarks/" in item.nodeid or "\\benchmarks\\" in item.nodeid:
+            item.add_marker(pytest.mark.timeout(0))
+
 RESULTS_DIR = Path(__file__).parent / "results"
 
 

@@ -295,6 +295,8 @@ See `make help` for all commands. For detailed setup, see [docs/DEVELOPMENT.md](
 
 See [ROADMAP.md](ROADMAP.md) for details.
 
+For **MCP clients**, **agent frameworks**, and **production Kubernetes** companions (Kyverno, ingress/OIDC, observability) — and what this project supports **in-repo** vs **at deploy time** — see [Ecosystem and platform integrations](ROADMAP.md#ecosystem-and-platform-integrations) in the roadmap.
+
 ## Contributing
 
 ```bash
@@ -311,6 +313,7 @@ Look for [`good first issue`](https://github.com/kubeflow/mcp-server/labels/good
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System design |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Local setup, testing |
 | [SECURITY.md](SECURITY.md) | Security policy |
+| [ROADMAP.md](ROADMAP.md) | Phases, priorities, ecosystem integrations |
 
 ## Community
 

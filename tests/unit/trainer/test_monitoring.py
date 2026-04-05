@@ -31,7 +31,6 @@ class MockEvent:
     message: str
     reason: str
     event_time: datetime
-    type: str = "Normal"
 
 
 class TestGetTrainingLogs:
@@ -133,7 +132,6 @@ class TestGetTrainingEvents:
                 message="Successfully pulled image",
                 reason="Pulled",
                 event_time=datetime.now(),
-                type="Normal",
             ),
             MockEvent(
                 involved_object_kind="Pod",
@@ -141,7 +139,6 @@ class TestGetTrainingEvents:
                 message="Started container",
                 reason="Started",
                 event_time=datetime.now(),
-                type="Normal",
             ),
         ]
         mock_get_client.return_value = mock_client
@@ -152,6 +149,9 @@ class TestGetTrainingEvents:
         assert result["data"]["job"] == "my-job"
         assert len(result["data"]["events"]) == 2
         assert result["data"]["events"][0]["reason"] == "Pulled"
+        assert result["data"]["events"][0]["involved_object_kind"] == "Pod"
+        assert result["data"]["events"][0]["involved_object_name"] == "my-job-node-0"
+        assert result["data"]["events"][0]["event_time"]
         assert "pulled image" in result["data"]["events"][0]["message"].lower()
 
     @patch("kubeflow_mcp.trainer.api.monitoring.get_trainer_client")
