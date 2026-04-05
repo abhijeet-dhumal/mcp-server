@@ -81,6 +81,7 @@ class TestSuspendTrainingJob:
             plural="trainjobs",
             name="my-job",
             body={"spec": {"suspend": True}},
+            _request_timeout=5,
         )
 
     @patch("kubernetes.config.load_config")
@@ -168,6 +169,7 @@ class TestResumeTrainingJob:
             plural="trainjobs",
             name="my-job",
             body={"spec": {"suspend": False}},
+            _request_timeout=5,
         )
 
     @patch("kubernetes.config.load_config")
