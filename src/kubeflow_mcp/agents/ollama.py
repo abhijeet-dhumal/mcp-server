@@ -61,36 +61,22 @@ except ImportError:
     Table = None  # type: ignore[misc, assignment]
     Text = None  # type: ignore[misc, assignment]
 
-# Optional MCP client support
-MCP_CLIENT_AVAILABLE = False
-try:
-    from llama_index.tools.mcp import BasicMCPClient, McpToolSpec
-
-    MCP_CLIENT_AVAILABLE = True
-except ImportError:
-    pass  # MCP client optional, fall back to direct imports
-
 from kubeflow_mcp.agents.dynamic_tools import (  # noqa: E402
+    PROGRESSIVE_TOOLS,
+    SEMANTIC_TOOLS,
     get_dynamic_system_prompt,
     get_dynamic_tools,
 )
-
-# Try to import TOOLS directly (fallback mode)
-try:
-    from kubeflow_mcp.trainer import TOOLS  # noqa: E402
-except ImportError:
-    TOOLS = []  # Will use MCP client instead
-
 from kubeflow_mcp.core.server import SERVER_INSTRUCTIONS  # noqa: E402
+from kubeflow_mcp.trainer import TOOLS  # noqa: E402
 
 console = Console()
 
+# Agent configuration defaults
 DEFAULT_MODEL = "qwen3:8b"
 DEFAULT_URL = "http://localhost:11434"
-
-# Import tool registries for dynamic counts
-from kubeflow_mcp.agents.dynamic_tools import PROGRESSIVE_TOOLS, SEMANTIC_TOOLS  # noqa: E402
-from kubeflow_mcp.trainer import TOOLS  # noqa: E402
+DEFAULT_REQUEST_TIMEOUT = 180.0  # LLM request timeout in seconds
+DEFAULT_MEMORY_TOKEN_LIMIT = 16000  # Chat memory token limit (qwen3:8b has 32K context)
 
 # Tool modes - counts computed dynamically from actual registries
 _NUM_TOOLS = len(TOOLS)
@@ -98,10 +84,10 @@ _NUM_PROGRESSIVE = len(PROGRESSIVE_TOOLS)
 _NUM_SEMANTIC = len(SEMANTIC_TOOLS)
 
 # User-facing tool modes
-# "full" uses MCP protocol (with fallback to direct import)
+# "full" uses in-process tools (efficient for local agent)
 # "progressive" and "semantic" reduce token usage via meta-tools
 TOOL_MODES = {
-    "full": f"All {_NUM_TOOLS} tools via MCP protocol",
+    "full": f"All {_NUM_TOOLS} tools loaded",
     "progressive": f"{_NUM_PROGRESSIVE} meta-tools with hierarchical discovery",
     "semantic": f"{_NUM_SEMANTIC} meta-tools with embedding search",
 }
@@ -118,105 +104,66 @@ AGENT-SPECIFIC:
 - If no GPUs (gpu_total=0), suggest CPU training or inform user
 """
 
-# Use server instructions as base, add agent-specific hints
-SYSTEM_PROMPT_FULL = SERVER_INSTRUCTIONS + AGENT_HINTS
-SYSTEM_PROMPT = SYSTEM_PROMPT_FULL
+# System prompt combining server instructions with agent-specific hints
+SYSTEM_PROMPT = SERVER_INSTRUCTIONS + AGENT_HINTS
 
 
-async def create_mcp_stdio_client(
-    server_command: list[str] | None = None,
-) -> tuple[Any, list[FunctionTool], str]:
-    """Create MCP client via stdio protocol (standard MCP approach).
+def _create_tools_from_server() -> tuple[list[FunctionTool], str]:
+    """Load tools from MCP server in-process.
 
-    This spawns the kubeflow-mcp server as a subprocess and connects via stdio,
-    the same way Cursor IDE and Claude Desktop connect. This ensures the local
-    agent uses the exact same protocol and gets identical behavior.
-
-    Args:
-        server_command: Command to start the MCP server.
-                       Default: ["kubeflow-mcp", "serve", "--transport", "stdio"]
-
-    Returns:
-        Tuple of (mcp_client, tools, instructions)
-    """
-    if not MCP_CLIENT_AVAILABLE:
-        raise ImportError("llama-index-tools-mcp not installed. Run: uv sync --extra agents")
-
-    if server_command is None:
-        server_command = ["kubeflow-mcp", "serve", "--transport", "stdio"]
-
-    client = BasicMCPClient(server_command)
-    tool_spec = McpToolSpec(client=client)
-
-    # Get tools from server via MCP protocol
-    tools = await tool_spec.ato_tool_list()
-
-    # Get server instructions (for system prompt)
-    instructions = ""
-    try:
-        # Access the MCP session to get server info
-        if hasattr(client, "session") and client.session:
-            server_info = await client.session.get_server_info()
-            if hasattr(server_info, "instructions") and server_info.instructions:
-                instructions = server_info.instructions
-    except Exception:
-        pass  # Fall back to default prompt
-
-    return client, tools, instructions
-
-
-def create_tools_fallback() -> tuple[list[FunctionTool], str]:
-    """Fallback: Load tools directly (in-process, no MCP protocol).
-
-    Use this only when MCP client is not available or subprocess cannot be spawned.
-    This is NOT the standard approach - prefer create_mcp_stdio_client().
+    Creates an in-process MCP server and extracts tools directly.
+    This is efficient for local agents - same tools as MCP protocol
+    but without subprocess overhead.
 
     Returns:
         Tuple of (tools, instructions)
     """
     import asyncio
 
-    from kubeflow_mcp.core.server import SERVER_INSTRUCTIONS, create_server
+    from kubeflow_mcp.core.server import create_server
 
     mcp = create_server(clients=["trainer"])
-    mcp_tools = asyncio.get_event_loop().run_until_complete(mcp.list_tools())
 
-    tools = []
-    for mcp_tool in mcp_tools:
-        full_tool = asyncio.get_event_loop().run_until_complete(mcp.get_tool(mcp_tool.name))
-        # FastMCP's FunctionTool has .fn attribute with the actual function
-        if full_tool and hasattr(full_tool, "fn") and full_tool.fn:
-            func_tool = FunctionTool.from_defaults(
-                fn=full_tool.fn,  # type: ignore[union-attr]
-                name=mcp_tool.name,
-                description=mcp_tool.description or mcp_tool.name,
-            )
-            tools.append(func_tool)
+    # Use asyncio.run() for clean event loop handling
+    async def load_tools():
+        mcp_tools = await mcp.list_tools()
+        tools = []
+        for mcp_tool in mcp_tools:
+            full_tool = await mcp.get_tool(mcp_tool.name)
+            if full_tool and hasattr(full_tool, "fn") and full_tool.fn:
+                func_tool = FunctionTool.from_defaults(
+                    fn=full_tool.fn,
+                    name=mcp_tool.name,
+                    description=mcp_tool.description or mcp_tool.name,
+                )
+                tools.append(func_tool)
+        return tools
+
+    try:
+        tools = asyncio.run(load_tools())
+    except RuntimeError:
+        # Already in async context - use existing loop
+        loop = asyncio.get_event_loop()
+        tools = loop.run_until_complete(load_tools())
 
     return tools, SERVER_INSTRUCTIONS
 
 
-def create_tools(
-    mode: str = "static",
-) -> list[FunctionTool]:
-    """Convert kubeflow-mcp tools to LlamaIndex FunctionTools.
+def _create_tools_from_funcs(mode: str = "full") -> list[FunctionTool]:
+    """Create LlamaIndex FunctionTools from tool functions.
 
     Args:
         mode: Tool loading mode:
-            - "full": All tools via MCP protocol (~900 tokens) - default
+            - "full": All tools (~200 tokens) - default
             - "progressive": 3 meta-tools for hierarchical discovery (~85 tokens)
             - "semantic": 2 meta-tools for embedding search (~69 tokens)
 
-    Note: For MCP mode, use create_mcp_client() async function instead.
+    Returns:
+        List of FunctionTool objects
     """
-    # Dynamic modes use meta-tools
     if mode in ("progressive", "semantic"):
         tool_funcs = get_dynamic_tools(mode)
-    elif mode == "mcp":
-        raise ValueError("Use create_mcp_client() for MCP mode")
     else:
-        if not TOOLS:
-            raise ImportError("TOOLS not available. Use --mode mcp instead.")
         tool_funcs = TOOLS  # type: ignore[assignment]
 
     tools = []
@@ -225,7 +172,7 @@ def create_tools(
         desc = doc.split("\n")[0] if doc else tool_func.__name__
 
         func_tool = FunctionTool.from_defaults(
-            fn=tool_func,  # type: ignore[arg-type]
+            fn=tool_func,
             name=tool_func.__name__,
             description=desc,
         )
@@ -250,17 +197,17 @@ class OllamaAgent:
     """Ollama agent using LlamaIndex FunctionAgent with thinking support.
 
     Supports multiple tool modes for different context budgets:
-        - "full": All tools via MCP protocol (~900 tokens) - default, best accuracy
+        - "full": All tools loaded (~200 tokens) - default, best accuracy
         - "progressive": 3 meta-tools (~85 tokens) - hierarchical discovery
         - "semantic": 2 meta-tools (~69 tokens) - embedding-based discovery
     """
 
-    _agent: FunctionAgent | None
-    _tools: list[FunctionTool] | None
+    _agent: "FunctionAgent | None"
+    _tools: "list[FunctionTool] | None"
     _thinking_supported: bool | None
-    memory: ChatMemoryBuffer | None
-    llm: Ollama | None
-    _mcp_client: Any
+    _thinking_notified: bool
+    memory: "ChatMemoryBuffer | None"
+    llm: "Ollama | None"
 
     def __init__(
         self,
@@ -275,17 +222,17 @@ class OllamaAgent:
         self._agent = None
         self._tools = None
         self._thinking_supported = None  # None = unknown, True/False = tested
+        self._thinking_notified = False  # Whether user has been notified about thinking support
         self._use_thinking = True  # User preference
         self.memory = None
         self.llm = None
-        self._mcp_client = None  # For MCP mode
 
         # Set system prompt based on mode
         if tool_mode in ("progressive", "semantic"):
             self._system_prompt = get_dynamic_system_prompt(tool_mode)
         else:
             # For static and mcp modes, use full prompt (mcp may override)
-            self._system_prompt = SYSTEM_PROMPT_FULL
+            self._system_prompt = SYSTEM_PROMPT
 
         # Dedicated event loop in background thread (prevents "Event loop is closed" errors)
         import asyncio
@@ -295,12 +242,12 @@ class OllamaAgent:
         self._loop_thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._loop_thread.start()
 
-    def _create_llm(self, with_thinking: bool):
+    def _create_llm(self, with_thinking: bool) -> "Ollama":
         """Create Ollama LLM with or without thinking mode."""
         return Ollama(
             model=self.model,
             base_url=self.base_url,
-            request_timeout=180.0,
+            request_timeout=DEFAULT_REQUEST_TIMEOUT,
             is_function_calling_model=True,
             thinking=with_thinking,
         )
@@ -313,71 +260,32 @@ class OllamaAgent:
         if with_thinking is None:
             with_thinking = self._use_thinking
 
-        # Suppress stderr during initialization
+        # Suppress stderr during initialization (llama_index can be noisy)
         old_stderr = sys.stderr
         sys.stderr = io.StringIO()
 
         try:
-            # Create tools based on mode
+            # Load tools based on mode
             if self.tool_mode == "full":
-                self._init_mcp_agent(with_thinking)
+                # Full mode: load from MCP server (in-process for efficiency)
+                self._tools, instructions = _create_tools_from_server()
+                if instructions:
+                    self._system_prompt = instructions + AGENT_HINTS
             else:
-                self._tools = create_tools(mode=self.tool_mode)
-                self.llm = self._create_llm(with_thinking)
-                # Larger memory for complex workflows (qwen3:8b has 32K context)
-                self.memory = ChatMemoryBuffer.from_defaults(token_limit=16000)
+                # Progressive/semantic: use meta-tools
+                self._tools = _create_tools_from_funcs(mode=self.tool_mode)
 
-                self._agent = FunctionAgent(
-                    tools=self._tools,  # type: ignore[arg-type]
-                    llm=self.llm,
-                    memory=self.memory,
-                    system_prompt=self._system_prompt,
-                )
+            self.llm = self._create_llm(with_thinking)
+            self.memory = ChatMemoryBuffer.from_defaults(token_limit=DEFAULT_MEMORY_TOKEN_LIMIT)
+
+            self._agent = FunctionAgent(
+                tools=self._tools,
+                llm=self.llm,
+                memory=self.memory,
+                system_prompt=self._system_prompt,
+            )
         finally:
             sys.stderr = old_stderr
-
-    def _init_mcp_agent(self, with_thinking: bool):
-        """Initialize agent via MCP stdio protocol (standard approach).
-
-        Connects to kubeflow-mcp server via stdio, the same way Cursor IDE
-        and Claude Desktop connect. This ensures protocol consistency and
-        access to all MCP features (tools, prompts, resources).
-        """
-        import asyncio
-        import concurrent.futures
-
-        if not MCP_CLIENT_AVAILABLE:
-            # Fallback to in-process if MCP client not available
-            console.print("[yellow]MCP client not available, using fallback mode[/yellow]")
-            self._tools, instructions = create_tools_fallback()
-        else:
-            # Standard MCP stdio connection (same as Cursor/Claude)
-            future = asyncio.run_coroutine_threadsafe(create_mcp_stdio_client(), self._loop)
-            try:
-                self._mcp_client, self._tools, instructions = future.result(timeout=30)
-            except concurrent.futures.TimeoutError as e:
-                raise TimeoutError(
-                    "MCP server connection timed out. "
-                    "Ensure kubeflow-mcp is installed and accessible."
-                ) from e
-            except Exception as e:
-                # Fallback if stdio connection fails
-                console.print(f"[yellow]MCP connection failed ({e}), using fallback[/yellow]")
-                self._tools, instructions = create_tools_fallback()
-
-        # Use server instructions (same as external MCP clients get)
-        if instructions:
-            self._system_prompt = instructions + AGENT_HINTS
-
-        self.llm = self._create_llm(with_thinking)
-        self.memory = ChatMemoryBuffer.from_defaults(token_limit=16000)
-
-        self._agent = FunctionAgent(
-            tools=self._tools,  # type: ignore[arg-type]
-            llm=self.llm,
-            memory=self.memory,
-            system_prompt=self._system_prompt,
-        )
 
     def set_thinking_mode(self, enabled: bool):
         """Toggle thinking mode - recreates LLM but preserves memory."""
@@ -415,7 +323,7 @@ class OllamaAgent:
         if resolved_mode in ("progressive", "semantic"):
             self._system_prompt = get_dynamic_system_prompt(resolved_mode)
         else:
-            self._system_prompt = SYSTEM_PROMPT_FULL
+            self._system_prompt = SYSTEM_PROMPT
 
         # Force agent recreation with new tools
         self._agent = None
@@ -612,7 +520,7 @@ def run_chat(
         model: Ollama model name
         url: Ollama server URL
         tool_mode: Tool loading mode:
-            - "full": All tools via MCP protocol (~900 tokens) - default
+            - "full": All tools loaded (~200 tokens) - default
             - "progressive": 3 meta-tools, hierarchical discovery (~85 tokens)
             - "semantic": 2 meta-tools, embedding search (~69 tokens)
     """
@@ -913,8 +821,8 @@ def run_chat(
             console.print(" " * 40, end="\r")
 
             # Notify user if thinking is available (but don't auto-enable - keeps output clean)
-            if agent._thinking_supported is True and not hasattr(agent, "_thinking_notified"):
-                agent._thinking_notified = True  # type: ignore[attr-defined]
+            if agent._thinking_supported is True and not agent._thinking_notified:
+                agent._thinking_notified = True
                 console.print(
                     "[dim]💭 Thinking supported. Use /think to see model reasoning.[/dim]"
                 )
@@ -963,12 +871,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Tool modes:
-  full        All tools via MCP protocol (~900 tokens) - default, best accuracy
-  progressive 3 meta-tools (~85 tokens) - hierarchical discovery, -91% tokens
-  semantic    2 meta-tools (~69 tokens) - embedding search, -92% tokens
+  full        All tools loaded (~200 tokens) - default, best accuracy
+  progressive 3 meta-tools (~85 tokens) - hierarchical discovery
+  semantic    2 meta-tools (~69 tokens) - embedding search
 
 Examples:
-  # Default - all tools via MCP protocol
+  # Default - all tools
   python -m kubeflow_mcp.agents.ollama
 
   # Progressive mode (minimal tokens, hierarchical discovery)

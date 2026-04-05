@@ -65,12 +65,19 @@ def cli() -> None:
     type=click.Choice(["json", "console"]),
     help="Log format (auto-detects if not specified)",
 )
+@click.option(
+    "--no-banner",
+    is_flag=True,
+    default=False,
+    help="Hide FastMCP startup banner",
+)
 def serve(
     clients: str,
     persona: str,
     transport: str,
     log_level: str,
     log_format: str | None,
+    no_banner: bool,
 ) -> None:
     """Start the MCP server."""
     from kubeflow_mcp.core.logging import setup_logging
@@ -85,10 +92,11 @@ def serve(
     client_list = [c.strip() for c in clients.split(",")]
     server = create_server(clients=client_list, persona=persona)
 
+    show_banner = not no_banner
     if transport == "stdio":
-        server.run()
+        server.run(show_banner=show_banner)
     else:
-        server.run(transport="streamable-http")
+        server.run(transport="streamable-http", show_banner=show_banner)
 
 
 @cli.command()
