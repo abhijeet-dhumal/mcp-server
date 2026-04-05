@@ -16,7 +16,7 @@ flowchart TB
         Instructions[SERVER_INSTRUCTIONS]
         Prompts[5 MCP Prompts]
         Resources[4 MCP Resources]
-        Tools[18 Tools]
+        Tools[16 Tools]
         Policy[Persona Policies]
         
         subgraph Modules["Modules"]

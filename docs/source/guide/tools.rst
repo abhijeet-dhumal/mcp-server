@@ -1,206 +1,87 @@
 Tools Reference
 ===============
 
-The Kubeflow MCP Server exposes 16 tools organized by workflow phase.
-
-Overview
---------
+16 tools organized by workflow phase.
 
 .. list-table::
    :header-rows: 1
-   :widths: 25 75
+   :widths: 20 80
 
    * - Phase
-     - Description
+     - Tools
    * - **Planning**
-     - Check cluster resources and estimate requirements before training
+     - ``get_cluster_resources``, ``estimate_resources``
    * - **Discovery**
-     - List and inspect jobs, runtimes, and configurations
+     - ``list_training_jobs``, ``get_training_job``, ``list_runtimes``, ``get_runtime``, ``get_runtime_packages``
    * - **Training**
-     - Submit fine-tuning, custom, and container training jobs
+     - ``fine_tune``, ``run_custom_training``, ``run_container_training``
    * - **Monitoring**
-     - Get logs, events, and wait for job completion
+     - ``get_training_logs``, ``get_training_events``, ``wait_for_training``
    * - **Lifecycle**
-     - Delete, suspend, and resume training jobs
+     - ``delete_training_job``, ``suspend_training_job``, ``resume_training_job``
 
-Planning Tools
---------------
+Planning
+--------
 
-get_cluster_resources
-^^^^^^^^^^^^^^^^^^^^^
+``get_cluster_resources``
+   Returns GPU count/types, CPU, memory, and node info.
 
-Check available resources in the cluster before submitting jobs.
+``estimate_resources``
+   Estimates GPU memory and batch size for a model.
 
-**Returns:**
+Training
+--------
 
-- Total GPU count and types
-- Available CPU and memory
-- Node information
+``fine_tune``
+   Fine-tune LLMs with LoRA/QLoRA.
 
-**Example prompt:**
+   .. list-table::
+      :widths: 25 75
 
-.. code-block:: text
+      * - ``model``
+        - HuggingFace model (e.g., ``hf://google/gemma-2b``)
+      * - ``dataset``
+        - Training dataset (e.g., ``hf://tatsu-lab/alpaca``)
+      * - ``batch_size``
+        - Training batch size (default: 4)
+      * - ``epochs``
+        - Training epochs (default: 1)
+      * - ``confirmed``
+        - ``False`` = preview, ``True`` = submit
 
-   "What resources are available in my cluster?"
+``run_custom_training``
+   Run custom Python training functions.
 
-estimate_resources
-^^^^^^^^^^^^^^^^^^
+``run_container_training``
+   Run training with custom container images.
 
-Estimate GPU memory and compute requirements for a model.
+Monitoring
+----------
 
-**Parameters:**
+``get_training_logs``
+   Stream pod logs for a job.
 
-- ``model``: Model identifier (e.g., ``google/gemma-2b``)
+``get_training_events``
+   Get Kubernetes events (scheduling, errors).
 
-**Returns:**
+``wait_for_training``
+   Block until job completes or fails.
 
-- Estimated GPU memory
-- Recommended batch size
-- Suggested configuration
+Lifecycle
+---------
 
-**Example prompt:**
+``delete_training_job``
+   Delete a training job (requires confirmation).
 
-.. code-block:: text
+``suspend_training_job`` / ``resume_training_job``
+   Pause and resume running jobs.
 
-   "How much GPU memory do I need to fine-tune Llama-3.2-3B?"
-
-Discovery Tools
----------------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - Tool
-     - Description
-   * - ``list_training_jobs``
-     - List all training jobs in namespace
-   * - ``get_training_job``
-     - Get details of a specific job
-   * - ``list_runtimes``
-     - List available ClusterTrainingRuntimes
-   * - ``get_runtime``
-     - Get runtime configuration details
-   * - ``get_runtime_packages``
-     - List packages installed in a runtime
-
-Training Tools
---------------
-
-fine_tune
-^^^^^^^^^
-
-Fine-tune a language model using LoRA or QLoRA.
-
-**Parameters:**
-
-.. list-table::
-   :widths: 20 15 65
-
-   * - Parameter
-     - Default
-     - Description
-   * - ``model``
-     - (required)
-     - Model to fine-tune (e.g., ``hf://google/gemma-2b``)
-   * - ``dataset``
-     - (required)
-     - Training dataset (e.g., ``hf://tatsu-lab/alpaca``)
-   * - ``batch_size``
-     - 4
-     - Training batch size
-   * - ``epochs``
-     - 1
-     - Number of training epochs
-   * - ``lora_rank``
-     - 8
-     - LoRA rank for parameter-efficient tuning
-   * - ``confirmed``
-     - False
-     - Set True to actually submit (False = preview)
-
-**Example prompt:**
-
-.. code-block:: text
-
-   "Fine-tune gemma-2b on alpaca with batch size 2 for 3 epochs"
-
-.. note::
-
-   The ``hf://`` prefix indicates a HuggingFace model or dataset.
-
-run_custom_training
-^^^^^^^^^^^^^^^^^^^
-
-Run a custom Python training function on the cluster.
-
-**Example prompt:**
-
-.. code-block:: text
-
-   "Run my custom training script with 2 workers"
-
-run_container_training
-^^^^^^^^^^^^^^^^^^^^^^
-
-Run training with a custom container image.
-
-**Example prompt:**
-
-.. code-block:: text
-
-   "Run training with my container image my-registry/my-trainer:latest"
-
-Monitoring Tools
-----------------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - Tool
-     - Description
-   * - ``get_training_logs``
-     - Get pod logs for a training job
-   * - ``get_training_events``
-     - Get Kubernetes events for a job
-   * - ``wait_for_training``
-     - Block until job completes or fails
-
-Lifecycle Tools
----------------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - Tool
-     - Description
-   * - ``delete_training_job``
-     - Delete a training job
-   * - ``suspend_training_job``
-     - Suspend a running job
-   * - ``resume_training_job``
-     - Resume a suspended job
-
-Confirmation Required
----------------------
-
-The following tools require explicit confirmation (``confirmed=True``):
-
-- ``fine_tune``
-- ``run_custom_training``
-- ``run_container_training``
-- ``delete_training_job``
-
-.. warning::
-
-   This prevents accidental resource creation or deletion. Always review
-   the preview output before confirming.
-
-What's Next?
+Confirmation
 ------------
 
-- :doc:`prompts` - Use guided workflow prompts
-- :doc:`resources` - Access read-only reference data
-- :doc:`agents` - Try the local Ollama agent
+These tools require ``confirmed=True``:
+
+- ``fine_tune``, ``run_custom_training``, ``run_container_training``
+- ``delete_training_job``
+
+Next: :doc:`prompts` | :doc:`resources` | :doc:`agents`

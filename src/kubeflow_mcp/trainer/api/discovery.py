@@ -33,14 +33,23 @@ def list_training_jobs(
     status: str | None = None,
     limit: int = 50,
 ) -> dict[str, Any]:
-    """List training jobs in the cluster.
+    """List training jobs in the current namespace.
 
     Args:
-        runtime: Filter by runtime name
-        status: Filter by status (Running/Succeeded/Failed/Pending/Suspended)
-        limit: Max jobs to return (default 50)
+        runtime: Filter by ClusterTrainingRuntime name (e.g., ``torch-tune``).
+        status: Filter by job status. One of: ``Running``, ``Succeeded``,
+            ``Failed``, ``Pending``, ``Suspended``.
+        limit: Maximum jobs to return. Defaults to 50.
 
-    Returns: {jobs: [{name, status, runtime}], total}
+    Returns:
+        dict: Response containing:
+
+        - ``jobs`` (list): List of jobs with ``name``, ``status``, ``runtime``
+        - ``total`` (int): Total matching jobs
+
+    Example:
+        >>> list_training_jobs(status="Running")
+        {"data": {"jobs": [{"name": "fine-tune-abc", "status": "Running"}], "total": 1}}
     """
     try:
         client = get_trainer_client()
@@ -71,9 +80,13 @@ def get_training_job(name: str) -> dict[str, Any]:
     """Get details of a specific training job.
 
     Args:
-        name: Job name
+        name: The TrainJob name.
 
-    Returns: {name, status, runtime}
+    Returns:
+        dict: Response containing ``name``, ``status``, ``runtime``.
+
+    Raises:
+        ToolError: If job not found (``RESOURCE_NOT_FOUND``).
     """
     try:
         client = get_trainer_client()
@@ -100,9 +113,20 @@ def get_training_job(name: str) -> dict[str, Any]:
 
 
 def list_runtimes() -> dict[str, Any]:
-    """List available training runtimes. Use if fine_tune() fails with "runtime not found".
+    """List available ClusterTrainingRuntimes.
 
-    Returns: {runtimes: [{name}], total}
+    Call this if ``fine_tune()`` fails with "runtime not found" to see
+    what runtimes are installed in the cluster.
+
+    Returns:
+        dict: Response containing:
+
+        - ``runtimes`` (list): Available runtimes with ``name``
+        - ``total`` (int): Runtime count
+
+    Example:
+        >>> list_runtimes()
+        {"data": {"runtimes": [{"name": "torch-tune"}, {"name": "torch-distributed"}], "total": 2}}
     """
     try:
         client = get_trainer_client()
@@ -128,12 +152,16 @@ def list_runtimes() -> dict[str, Any]:
 
 
 def get_runtime(name: str) -> dict[str, Any]:
-    """Get runtime configuration details.
+    """Get ClusterTrainingRuntime configuration.
 
     Args:
-        name: Runtime name
+        name: Runtime name (e.g., ``torch-tune``).
 
-    Returns: {name, config}
+    Returns:
+        dict: Response containing runtime ``name`` and configuration.
+
+    Raises:
+        ToolError: If runtime not found (``RESOURCE_NOT_FOUND``).
     """
     try:
         client = get_trainer_client()
@@ -158,12 +186,18 @@ def get_runtime(name: str) -> dict[str, Any]:
 
 
 def get_runtime_packages(name: str) -> dict[str, Any]:
-    """Get pip packages installed in a runtime by executing pip list in the runtime container.
+    """Get pip packages installed in a runtime container.
+
+    Executes ``pip list`` inside the runtime's container image.
 
     Args:
-        name: Runtime name
+        name: Runtime name (e.g., ``torch-tune``).
 
-    Returns: {runtime, packages} or prints packages to stdout (SDK behavior)
+    Returns:
+        dict: Response containing ``runtime`` name and ``packages`` list.
+
+    Note:
+        SDK may print output to stdout instead of returning it.
     """
     try:
         client = get_trainer_client()

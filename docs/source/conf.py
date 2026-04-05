@@ -132,3 +132,10 @@ myst_enable_extensions = [
     "tasklist",
 ]
 myst_heading_anchors = 3
+
+# -- Options for search ------------------------------------------------------
+html_search_language = "en"
+html_search_options = {
+    "type": "default",
+    "tokenizer_lang": "porter",
+}

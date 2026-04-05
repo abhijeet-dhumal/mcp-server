@@ -139,28 +139,37 @@ def fine_tune(
     volume_mounts: list[dict[str, Any]] | None = None,
     confirmed: bool = False,
 ) -> dict[str, Any]:
-    """Fine-tune a HuggingFace model using torchtune.
+    """Fine-tune a HuggingFace model using LoRA/QLoRA with torchtune.
 
-    Call get_cluster_resources() first to verify GPUs available.
+    Requires ``confirmed=True`` to submit. First call returns a preview.
 
     Args:
-        model: HuggingFace model URI with hf:// prefix (e.g., "hf://google/gemma-2b")
-        dataset: HuggingFace dataset URI with hf:// prefix (e.g., "hf://tatsu-lab/alpaca")
-        runtime: Runtime name (default "torch-tune"). Use list_runtimes() if not found.
-        hf_token: Token for gated models (Llama, Mistral)
-        batch_size: Batch size per GPU (default 4)
-        epochs: Training epochs (default 1)
-        num_nodes: Number of distributed nodes (default 1)
-        lora_rank: LoRA rank for parameter-efficient fine-tuning (default 8)
-        lora_alpha: LoRA alpha scaling factor (default 16)
-        node_selector: Target specific nodes (e.g., {"node-type": "gpu-a100"})
-        tolerations: Schedule on tainted nodes
-        env: Extra env vars
-        volumes: Add volumes
-        volume_mounts: Mount volumes
-        confirmed: True to submit, False for preview only
+        model: HuggingFace model with ``hf://`` prefix (e.g., ``hf://google/gemma-2b``).
+        dataset: HuggingFace dataset with ``hf://`` prefix (e.g., ``hf://tatsu-lab/alpaca``).
+        runtime: ClusterTrainingRuntime name. Defaults to ``torch-tune``.
+        hf_token: Access token for gated models (Llama, Mistral).
+        batch_size: Per-GPU batch size. Defaults to 4.
+        epochs: Number of training epochs. Defaults to 1.
+        num_nodes: Distributed training nodes. Defaults to 1.
+        lora_rank: LoRA rank for PEFT. Defaults to 8.
+        lora_alpha: LoRA alpha scaling. Defaults to 16.
+        node_selector: K8s node selector (e.g., ``{"gpu-type": "a100"}``).
+        tolerations: K8s tolerations for tainted nodes.
+        env: Additional environment variables.
+        volumes: K8s volume definitions.
+        volume_mounts: K8s volume mounts.
+        confirmed: Set ``True`` to submit job. ``False`` returns preview only.
 
-    Returns: Preview if confirmed=False, else {job_name, status}
+    Returns:
+        dict: If ``confirmed=False``: preview with ``config`` dict.
+            If ``confirmed=True``: ``job_name``, ``status``, ``message``.
+
+    Example:
+        >>> fine_tune("hf://google/gemma-2b", "hf://tatsu-lab/alpaca", confirmed=True)
+        {"data": {"job_name": "train-gemma-abc", "status": "Created"}}
+
+    Note:
+        Call ``get_cluster_resources()`` first to verify GPU availability.
     """
     try:
         if not _SDK_AVAILABLE:
@@ -367,22 +376,29 @@ def run_custom_training(
     volume_mounts: list[dict[str, Any]] | None = None,
     confirmed: bool = False,
 ) -> dict[str, Any]:
-    """Run custom Python training script on cluster.
+    """Run a custom Python training script on the cluster.
+
+    Script is validated for security before execution.
 
     Args:
-        script: Python code (validated for security)
-        name: Job name (auto-generated if omitted)
-        num_nodes: Distributed nodes (default 1)
-        gpu_per_node: GPUs per node (default 1, 0 for CPU)
-        packages: Pip packages to install
-        node_selector: Target specific nodes (e.g., {"node-type": "gpu-a100"})
-        tolerations: Schedule on tainted nodes
-        env: Environment variables (e.g., [{"name": "PIP_USER", "value": "1"}])
-        volumes: Add volumes
-        volume_mounts: Mount volumes
-        confirmed: True to submit, False for preview
+        script: Python code string. Validated against dangerous operations.
+        name: TrainJob name. Auto-generated if not provided.
+        num_nodes: Distributed training nodes. Defaults to 1.
+        gpu_per_node: GPUs per node. Set 0 for CPU-only. Defaults to 1.
+        packages: Pip packages to install (e.g., ``["torch", "transformers"]``).
+        node_selector: K8s node selector.
+        tolerations: K8s tolerations.
+        env: Environment variables as list of dicts.
+        volumes: K8s volume definitions.
+        volume_mounts: K8s volume mounts.
+        confirmed: Set ``True`` to submit. ``False`` returns preview.
 
-    Returns: Preview if confirmed=False, else {job_name, status}
+    Returns:
+        dict: If ``confirmed=False``: preview with truncated script.
+            If ``confirmed=True``: ``job_name``, ``status``, ``message``.
+
+    Note:
+        Use ``run_container_training()`` for unrestricted script execution.
     """
     try:
         if not _SDK_AVAILABLE:
@@ -493,19 +509,23 @@ def run_container_training(
 ) -> dict[str, Any]:
     """Run training with a pre-built container image.
 
-    Args:
-        image: Container image (e.g., "pytorch/pytorch:2.0-cuda11.8")
-        command: Override container command (optional)
-        num_nodes: Distributed nodes (default 1)
-        gpu_per_node: GPUs per node (default 1, 0 for CPU)
-        env: Environment variables dict
-        node_selector: Target specific nodes (e.g., {"node-type": "gpu-a100"})
-        tolerations: Schedule on tainted nodes
-        volumes: Add volumes (e.g., [{"name": "data", "persistentVolumeClaim": {"claimName": "my-pvc"}}])
-        volume_mounts: Mount volumes (e.g., [{"name": "data", "mountPath": "/data"}])
-        confirmed: True to submit, False for preview
+    No script validation - full control via container ENTRYPOINT/CMD.
 
-    Returns: Preview if confirmed=False, else {job_name, status}
+    Args:
+        image: Container image (e.g., ``pytorch/pytorch:2.0-cuda11.8``).
+        command: Override container command (baked into image if omitted).
+        num_nodes: Distributed training nodes. Defaults to 1.
+        gpu_per_node: GPUs per node. Set 0 for CPU-only. Defaults to 1.
+        env: Environment variables as dict (e.g., ``{"HF_TOKEN": "xxx"}``).
+        node_selector: K8s node selector.
+        tolerations: K8s tolerations.
+        volumes: K8s volumes (e.g., ``[{"name": "data", "persistentVolumeClaim": {...}}]``).
+        volume_mounts: K8s mounts (e.g., ``[{"name": "data", "mountPath": "/data"}]``).
+        confirmed: Set ``True`` to submit. ``False`` returns preview.
+
+    Returns:
+        dict: If ``confirmed=False``: preview with config.
+            If ``confirmed=True``: ``job_name``, ``status``, ``message``.
     """
     try:
         if not _SDK_AVAILABLE:

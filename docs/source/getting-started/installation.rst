@@ -4,51 +4,37 @@ Installation
 Requirements
 ------------
 
-- Python 3.10 or higher
-- Access to a Kubernetes cluster with Kubeflow Training Operator installed
-- kubectl configured with cluster access
+- Python 3.10+
+- Kubernetes cluster with Kubeflow Training Operator
+- kubectl configured
 
-Install from PyPI
------------------
+Install
+-------
 
 .. code-block:: bash
 
    pip install kubeflow-mcp
 
-Install with Extras
--------------------
-
-For local agent support:
+With extras:
 
 .. code-block:: bash
 
-   pip install kubeflow-mcp[agents]
+   pip install kubeflow-mcp[agents]  # Local Ollama agent
+   pip install kubeflow-mcp[dev]     # Development tools
 
-For development:
-
-.. code-block:: bash
-
-   pip install kubeflow-mcp[dev]
-
-Install from Source
--------------------
+From source:
 
 .. code-block:: bash
 
    git clone https://github.com/kubeflow/mcp-server.git
-   cd mcp-server
-   pip install -e ".[dev]"
+   cd mcp-server && pip install -e ".[dev]"
 
-Verify Installation
--------------------
+Verify
+------
 
 .. code-block:: bash
 
    kubeflow-mcp --version
    kubeflow-mcp serve --help
 
-Next Steps
-----------
-
-- :doc:`quickstart` - Get started with your first training job
-- :doc:`configuration` - Configure the server for your environment
+Next: :doc:`quickstart` | :doc:`configuration`

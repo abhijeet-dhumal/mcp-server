@@ -102,10 +102,24 @@ def _estimate_from_params(params: float, batch_size: int = 4) -> dict[str, Any]:
 
 
 def get_cluster_resources() -> dict[str, Any]:
-    """Check cluster GPU availability. CALL FIRST before any training.
+    """Check cluster GPU and compute availability.
 
-    Returns: {gpu_total, nodes_with_gpu, node_count, nodes}
-    If gpu_total=0 → no GPUs, cannot fine-tune LLMs.
+    Call this before submitting training jobs to verify resources exist.
+
+    Returns:
+        dict: Response containing:
+
+        - ``gpu_total`` (int): Total GPUs across all nodes
+        - ``nodes_with_gpu`` (int): Number of nodes with GPUs
+        - ``node_count`` (int): Total node count
+        - ``nodes`` (list): Per-node details (name, memory, cpu, gpus)
+
+    Example:
+        >>> get_cluster_resources()
+        {"data": {"gpu_total": 4, "nodes_with_gpu": 2, ...}}
+
+    Note:
+        Returns ``gpu_total=0`` if no GPUs available - LLM fine-tuning requires GPUs.
     """
     try:
         from kubernetes import client, config
@@ -154,14 +168,29 @@ def estimate_resources(
     num_workers: int = 1,
     batch_size: int = 4,
 ) -> dict[str, Any]:
-    """Estimate GPU/memory for training a HuggingFace model.
+    """Estimate GPU and memory requirements for training a model.
+
+    Fetches model metadata from HuggingFace Hub and calculates resource
+    requirements based on parameter count for LoRA fine-tuning with bf16.
 
     Args:
-        model: HuggingFace model ID (e.g., "google/gemma-2b" or "hf://google/gemma-2b")
-        num_workers: Distributed workers (default 1)
-        batch_size: Per-GPU batch size (default 4)
+        model: HuggingFace model ID. Accepts ``google/gemma-2b`` or ``hf://google/gemma-2b``.
+        num_workers: Number of distributed workers. Defaults to 1.
+        batch_size: Per-GPU batch size. Defaults to 4.
 
-    Returns: {gpu_memory_required, gpu_type_recommended, total_gpu}
+    Returns:
+        dict: Response containing:
+
+        - ``params_billions`` (float): Model size in billions of parameters
+        - ``gpu_per_worker`` (int): GPUs needed per worker
+        - ``gpu_memory_required`` (str): Estimated GPU memory (e.g., "16GB")
+        - ``gpu_type_recommended`` (str): Suggested GPU type
+        - ``total_gpu`` (int): Total GPUs needed (gpu_per_worker * num_workers)
+        - ``recommendation`` (str): Human-readable suggestion
+
+    Example:
+        >>> estimate_resources("google/gemma-2b", batch_size=2)
+        {"data": {"params_billions": 2.0, "gpu_memory_required": "16GB", ...}}
     """
     try:
         # Strip hf:// prefix if present (fine_tune uses hf://, but HF API needs raw ID)

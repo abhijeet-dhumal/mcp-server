@@ -28,12 +28,21 @@ from kubeflow_mcp.common.utils import get_trainer_client
 
 
 def delete_training_job(name: str) -> dict[str, Any]:
-    """Delete a training job. Irreversible.
+    """Delete a training job permanently.
+
+    This operation is irreversible - all job resources are removed.
 
     Args:
-        name: Job name to delete
+        name: TrainJob name to delete.
 
-    Returns: {job, deleted, message}
+    Returns:
+        dict: Response containing ``job``, ``deleted`` (bool), ``message``.
+
+    Raises:
+        ToolError: If job not found (``RESOURCE_NOT_FOUND``).
+
+    Warning:
+        Requires confirmation in MCP clients - accidental deletion prevented.
     """
     try:
         client = get_trainer_client()
@@ -63,13 +72,19 @@ def suspend_training_job(
     name: str,
     namespace: str | None = None,
 ) -> dict[str, Any]:
-    """Pause a running training job. Resume with resume_training_job().
+    """Pause a running training job.
+
+    Suspends job execution without deleting. Resume with ``resume_training_job()``.
 
     Args:
-        name: Job name
-        namespace: K8s namespace (default from kubeconfig)
+        name: TrainJob name.
+        namespace: K8s namespace. Defaults to kubeconfig context.
 
-    Returns: {job, suspended, message}
+    Returns:
+        dict: Response containing ``job``, ``namespace``, ``suspended`` (bool), ``message``.
+
+    Raises:
+        ToolError: If job not found (``RESOURCE_NOT_FOUND``).
     """
     try:
         from kubernetes import client, config
@@ -117,10 +132,14 @@ def resume_training_job(
     """Resume a suspended training job.
 
     Args:
-        name: Job name
-        namespace: K8s namespace (default from kubeconfig)
+        name: TrainJob name.
+        namespace: K8s namespace. Defaults to kubeconfig context.
 
-    Returns: {job, resumed, message}
+    Returns:
+        dict: Response containing ``job``, ``namespace``, ``resumed`` (bool), ``message``.
+
+    Raises:
+        ToolError: If job not found (``RESOURCE_NOT_FOUND``).
     """
     try:
         from kubernetes import client, config

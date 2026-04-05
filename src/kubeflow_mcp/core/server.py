@@ -38,6 +38,32 @@ CLIENT_MODULES = {
     "hub": "kubeflow_mcp.hub",
 }
 
+# Concise tool descriptions for MCP clients (token-efficient)
+# Full docstrings remain in tool functions for API documentation
+TOOL_DESCRIPTIONS: dict[str, str] = {
+    # Planning
+    "get_cluster_resources": "Check cluster GPU/CPU availability. Call FIRST before training.",
+    "estimate_resources": "Estimate GPU memory needed for a HuggingFace model.",
+    # Discovery
+    "list_training_jobs": "List training jobs. Filter by runtime or status.",
+    "get_training_job": "Get details of a specific training job.",
+    "list_runtimes": "List available ClusterTrainingRuntimes.",
+    "get_runtime": "Get runtime configuration details.",
+    "get_runtime_packages": "List pip packages in a runtime container.",
+    # Training (require confirmed=True to submit)
+    "fine_tune": "Fine-tune HuggingFace model with LoRA. Set confirmed=True to submit.",
+    "run_custom_training": "Run Python training script. Set confirmed=True to submit.",
+    "run_container_training": "Run training with custom container. Set confirmed=True to submit.",
+    # Monitoring
+    "get_training_logs": "Get pod logs from a training job.",
+    "get_training_events": "Get K8s events for debugging pending/failed jobs.",
+    "wait_for_training": "Block until job reaches target status (Complete/Failed).",
+    # Lifecycle
+    "delete_training_job": "Delete a training job permanently.",
+    "suspend_training_job": "Pause a running job. Resume with resume_training_job.",
+    "resume_training_job": "Resume a suspended training job.",
+}
+
 # Tool annotations for MCP clients
 # See: https://spec.modelcontextprotocol.io/specification/2025-03-26/server/tools/#annotations
 # Tags enable phase-based tool discovery (planning, discovery, training, monitoring, lifecycle)
@@ -296,9 +322,17 @@ def create_server(
                 tool_name = tool_func.__name__
 
                 if tool_name in final_allowed:
-                    # Get annotations for this tool (if defined)
+                    # Get annotations and description for this tool
                     annotations = TOOL_ANNOTATIONS.get(tool_name)
-                    if annotations:
+                    description = TOOL_DESCRIPTIONS.get(tool_name)
+
+                    # Register with description (overrides docstring for MCP)
+                    # and annotations (MCP hints)
+                    if annotations and description:
+                        mcp.tool(description=description, annotations=annotations)(tool_func)
+                    elif description:
+                        mcp.tool(description=description)(tool_func)
+                    elif annotations:
                         mcp.tool(annotations=annotations)(tool_func)
                     else:
                         mcp.tool()(tool_func)

@@ -43,7 +43,7 @@ To implement:
        ```
     3. Implement tools in api/ subdirectory
     4. Update TOOLS list below
-    5. Add skills in skills/hub/
+    5. Add MCP prompts in core/prompts.py
 
 See: CONTRIBUTING.md for detailed guide
 """

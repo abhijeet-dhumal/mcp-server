@@ -25,13 +25,12 @@ src/kubeflow_mcp/
 │   ├── policy.py   # Persona-based access control
 │   └── health.py   # Health check tools
 ├── trainer/        # Kubeflow Training tools
-│   ├── api/        # Tool implementations
-│   │   ├── planning.py    # Resource estimation
-│   │   ├── training.py    # Job submission
-│   │   ├── discovery.py   # Job/runtime listing
-│   │   ├── monitoring.py  # Logs and events
-│   │   └── lifecycle.py   # Suspend/resume/delete
-│   └── skills/     # AI context documents
+│   └── api/        # Tool implementations
+│       ├── planning.py    # Resource estimation
+│       ├── training.py    # Job submission
+│       ├── discovery.py   # Job/runtime listing
+│       ├── monitoring.py  # Logs and events
+│       └── lifecycle.py   # Suspend/resume/delete
 ├── agents/         # Local agent implementations
 │   ├── ollama.py   # Ollama-based agent
 │   └── dynamic_tools.py  # Progressive/semantic modes
