@@ -72,16 +72,15 @@ class HealthManager:
 
     def _health_check(self) -> dict[str, Any]:
         """Internal health check implementation."""
+        from kubeflow_mcp.common.utils import K8S_TIMEOUT, get_core_v1_api
+
         now = datetime.now(timezone.utc)
         uptime = (now - self._start_time).total_seconds()
 
         k8s_ok = False
         try:
-            from kubernetes import client, config
-
-            config.load_config()
-            v1 = client.CoreV1Api()
-            v1.list_namespace(limit=1)
+            v1 = get_core_v1_api()
+            v1.list_namespace(limit=1, _request_timeout=K8S_TIMEOUT)
             k8s_ok = True
         except Exception as e:
             logger.warning(f"K8s health check failed: {e}")

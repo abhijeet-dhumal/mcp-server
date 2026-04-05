@@ -122,12 +122,10 @@ def get_cluster_resources() -> dict[str, Any]:
         Returns ``gpu_total=0`` if no GPUs available - LLM fine-tuning requires GPUs.
     """
     try:
-        from kubernetes import client, config
+        from kubeflow_mcp.common.utils import K8S_TIMEOUT, get_core_v1_api
 
-        config.load_config()
-        v1 = client.CoreV1Api()
-
-        nodes = v1.list_node()
+        v1 = get_core_v1_api()
+        nodes = v1.list_node(_request_timeout=K8S_TIMEOUT)
         gpu_total = 0
         node_info = []
 

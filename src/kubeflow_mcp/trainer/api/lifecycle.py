@@ -87,11 +87,9 @@ def suspend_training_job(
         ToolError: If job not found (``RESOURCE_NOT_FOUND``).
     """
     try:
-        from kubernetes import client, config
+        from kubeflow_mcp.common.utils import K8S_TIMEOUT, get_custom_objects_api
 
-        config.load_config()
-        api = client.CustomObjectsApi()
-
+        api = get_custom_objects_api()
         ns = namespace or "default"
         body = {"spec": {"suspend": True}}
 
@@ -102,6 +100,7 @@ def suspend_training_job(
             plural="trainjobs",
             name=name,
             body=body,
+            _request_timeout=K8S_TIMEOUT,
         )
 
         return ToolResponse(
@@ -142,11 +141,9 @@ def resume_training_job(
         ToolError: If job not found (``RESOURCE_NOT_FOUND``).
     """
     try:
-        from kubernetes import client, config
+        from kubeflow_mcp.common.utils import K8S_TIMEOUT, get_custom_objects_api
 
-        config.load_config()
-        api = client.CustomObjectsApi()
-
+        api = get_custom_objects_api()
         ns = namespace or "default"
         body = {"spec": {"suspend": False}}
 
@@ -157,6 +154,7 @@ def resume_training_job(
             plural="trainjobs",
             name=name,
             body=body,
+            _request_timeout=K8S_TIMEOUT,
         )
 
         return ToolResponse(
