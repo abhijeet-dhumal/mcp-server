@@ -293,7 +293,7 @@ See `make help` for all commands. For detailed setup, see [docs/DEVELOPMENT.md](
 | **OptimizerClient** | 🔲 Planned | Katib hyperparameter tuning |
 | **ModelRegistryClient** | 🔲 Planned | Model versioning |
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for details.
+See [ROADMAP.md](ROADMAP.md) for details.
 
 ## Contributing
 
@@ -308,7 +308,7 @@ Look for [`good first issue`](https://github.com/kubeflow/mcp-server/labels/good
 | Doc | Description |
 |-----|-------------|
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Guidelines, DCO, code style |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System design |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Local setup, testing |
 | [SECURITY.md](SECURITY.md) | Security policy |
 

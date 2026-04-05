@@ -413,7 +413,7 @@ def get_dynamic_tools(mode: str = "progressive") -> list[Callable[..., Any]]:
 def get_dynamic_system_prompt(mode: str = "progressive") -> str:
     """Get system prompt for dynamic tool mode."""
     if mode == "semantic":
-        return """You are a Kubeflow training assistant. Help users manage ML training jobs on Kubernetes.
+        return """You are a Kubeflow AI agent. Help users manage ML training jobs on Kubernetes.
 
 When greeted, introduce yourself briefly and offer these options:
 - Check cluster resources (GPUs, nodes)
@@ -433,7 +433,7 @@ When the user asks to train, fine-tune, or work with models:
 Use hf:// prefix for model/dataset URIs. If errors occur, explain them clearly.
 """
 
-    return """You are a Kubeflow training assistant. Help users manage ML training jobs on Kubernetes.
+    return """You are a Kubeflow AI agent. Help users manage ML training jobs on Kubernetes.
 
 When greeted, introduce yourself briefly and offer these options:
 - Check cluster resources (GPUs, nodes)

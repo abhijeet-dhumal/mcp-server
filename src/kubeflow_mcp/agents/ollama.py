@@ -605,7 +605,7 @@ def run_chat(
     # Welcome panel
     welcome = Table.grid(padding=(0, 1))
     welcome.add_column(justify="left")
-    welcome.add_row(Text("Kubeflow Training Assistant", style="bold bright_cyan"))
+    welcome.add_row(Text("Kubeflow AI Agent", style="bold bright_cyan"))
     welcome.add_row(Text(f"Model: {model}", style="bright_green"))
     welcome.add_row(Text(f"Ollama: {url}", style="bright_white"))
     mode_desc = TOOL_MODES.get(tool_mode, tool_mode)

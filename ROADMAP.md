@@ -2,6 +2,18 @@
 
 This document outlines planned features and improvements. Contributors are welcome to pick up any item!
 
+## Context & Design
+
+This project implements [KEP-936: Kubeflow MCP Server](https://github.com/kubeflow/community/tree/master/proposals/936-kubeflow-mcp-server) - a Model Context Protocol server for AI-assisted Kubeflow operations.
+
+**Key References:**
+- [KEP-936 Proposal](https://github.com/kubeflow/community/tree/master/proposals/936-kubeflow-mcp-server) - Original design document
+- [MCP Specification](https://modelcontextprotocol.io/specification) - Protocol specification
+- [Kubeflow Training Operator](https://www.kubeflow.org/docs/components/training/) - Backend integration
+- [GSoC 2025 Project](https://github.com/kubeflow/community/blob/master/mentoring/projects/gsoc-2025.md) - Mentorship program
+
+---
+
 ## Phase 1: Core Stability (Current)
 
 | Feature | Status | Notes |

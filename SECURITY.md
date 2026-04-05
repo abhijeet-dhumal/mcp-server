@@ -104,7 +104,7 @@ rules:
 
 ## Security Roadmap
 
-See [ROADMAP.md](docs/ROADMAP.md) for planned security enhancements:
+See [ROADMAP.md](ROADMAP.md) for planned security enhancements:
 - Bearer token authentication
 - OAuth 2.1 + PKCE
 - Audit logging

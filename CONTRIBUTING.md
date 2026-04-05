@@ -221,6 +221,22 @@ feat: add support for distributed training metrics
 Signed-off-by: Jane Doe <jane@example.com>
 ```
 
+### Prow Commands
+
+This repository uses [Prow](https://docs.prow.k8s.io/) for CI/CD automation. Reviewers and approvers can use these commands in PR comments:
+
+| Command | Who Can Use | Description |
+|---------|-------------|-------------|
+| `/lgtm` | Reviewers (in OWNERS) | Add "lgtm" label after code review |
+| `/approve` | Approvers (in OWNERS) | Add "approved" label, enables merge |
+| `/hold` | Anyone | Prevent PR from merging |
+| `/hold cancel` | Anyone | Remove hold |
+| `/retest` | Anyone | Re-run failed tests |
+| `/assign @user` | Anyone | Assign PR to a user |
+| `/cc @user` | Anyone | Request review from a user |
+
+PRs require both `lgtm` and `approved` labels to merge. See [OWNERS](OWNERS) for current reviewers and approvers.
+
 ## Adding a New Client Module
 
 To add support for new Kubeflow components (e.g., Katib, Model Registry):
@@ -256,9 +272,9 @@ Looking for where to start? Check out issues labeled [`good first issue`](https:
 
 ## Additional Documentation
 
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System design and module structure
+- [ARCHITECTURE.md](ARCHITECTURE.md) - System design and module structure
 - [DEVELOPMENT.md](docs/DEVELOPMENT.md) - Detailed development guide
-- [ROADMAP.md](docs/ROADMAP.md) - Planned features
+- [ROADMAP.md](ROADMAP.md) - Planned features
 - [SECURITY.md](SECURITY.md) - Security policy and vulnerability reporting
 
 ## Questions?

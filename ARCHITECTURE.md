@@ -335,7 +335,7 @@ sequenceDiagram
 
 ## Related Documentation
 
-- [CONTRIBUTING.md](../CONTRIBUTING.md) - How to contribute
-- [DEVELOPMENT.md](DEVELOPMENT.md) - Development setup
-- [README.md](../README.md) - User documentation
+- [CONTRIBUTING.md](CONTRIBUTING.md) - How to contribute
+- [DEVELOPMENT.md](docs/DEVELOPMENT.md) - Development setup
+- [README.md](README.md) - User documentation
 - [Kubeflow Training Operator](https://www.kubeflow.org/docs/components/training/)
