@@ -314,7 +314,7 @@ Look for [`good first issue`](https://github.com/kubeflow/mcp-server/labels/good
 
 ## Community
 
-- **Slack**: [#wg-training](https://kubeflow.slack.com) on Kubeflow Slack
+- **Slack**: [#kubeflow-ml-experience](https://www.kubeflow.org/docs/about/community/#slack-channels) on CNCF Slack
 - **Meetings**: [Kubeflow SDK and ML Experience](https://bit.ly/kf-ml-experience) bi-weekly
 
 ## License

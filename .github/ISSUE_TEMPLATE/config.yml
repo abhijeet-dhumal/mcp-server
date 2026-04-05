@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: 💬 Kubeflow Slack
-    url: https://kubeflow.slack.com/archives/C0PUJJKQ6
-    about: Chat with maintainers on #wg-training
+  - name: 💬 CNCF Slack
+    url: https://www.kubeflow.org/docs/about/community/#slack-channels
+    about: Chat with maintainers on #kubeflow-ml-experience
   - name: 📖 Architecture
     url: https://github.com/kubeflow/mcp-server/blob/main/ARCHITECTURE.md
     about: Read system architecture and design

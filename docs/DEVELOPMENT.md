@@ -285,7 +285,7 @@ make lint
 ## Getting Help
 
 - Open an issue on GitHub
-- Join [Kubeflow Slack](https://kubeflow.slack.com) #wg-training
+- Join [#kubeflow-ml-experience](https://www.kubeflow.org/docs/about/community/#slack-channels) on CNCF Slack
 - Review existing code for patterns
 
 ## See Also

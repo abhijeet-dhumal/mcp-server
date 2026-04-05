@@ -280,7 +280,7 @@ Looking for where to start? Check out issues labeled [`good first issue`](https:
 ## Questions?
 
 - Open an issue for bugs or feature requests
-- Join the [Kubeflow Slack](https://kubeflow.slack.com) `#wg-training` for discussions
+- Join [#kubeflow-ml-experience](https://www.kubeflow.org/docs/about/community/#slack-channels) on CNCF Slack for discussions
 - Check existing issues before creating new ones
 
 ## License
