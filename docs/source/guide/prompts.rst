@@ -1,7 +1,7 @@
 MCP Prompts
 ===========
 
-Workflow prompts guide users through common tasks. 
+Workflow prompts guide users through common tasks.
 
 They do not run jobs by themselves. Instead, they generate structured guidance
 that helps users and agents call the right tools in the right order.
@@ -43,10 +43,10 @@ Some prompts accept optional arguments to tailor their output.
      - Use ``script`` (default) or ``container``.
    * - ``troubleshooting_guide``
      - ``error_type``
-     - Examples: ``oom``, ``pending``, ``runtime``, ``permission``.
+     - Specialized guides: ``oom``, ``pending``, ``image``, ``nccl``;
    * - ``resource_planning``
-     - ``model_size``
-     - Can be used to adjust planning guidance.
+     - ``model``
+     - Can be used to tailor planning guidance for a specific model.
    * - ``monitoring_workflow``
      - ``job_name``
      - Focuses monitoring steps for a specific job.

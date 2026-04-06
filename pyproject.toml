@@ -81,7 +81,6 @@ agents = [
 [project.urls]
 Repository = "https://github.com/kubeflow/mcp-server"
 Issues = "https://github.com/kubeflow/mcp-server/issues"
-Changelog = "https://github.com/kubeflow/mcp-server/blob/main/CHANGELOG.md"
 
 [project.scripts]
 kubeflow-mcp = "kubeflow_mcp.cli:cli"
