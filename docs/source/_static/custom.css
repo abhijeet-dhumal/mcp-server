@@ -28,7 +28,7 @@
 
 /* Dark mode overrides */
 @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
+    body:not([data-theme="light"]) {
         --kf-blue: #63b3ed;
         --kf-blue-light: #90cdf4;
         --kf-blue-dark: #4299e1;

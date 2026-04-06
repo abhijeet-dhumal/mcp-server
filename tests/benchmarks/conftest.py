@@ -14,6 +14,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         if "/benchmarks/" in item.nodeid or "\\benchmarks\\" in item.nodeid:
             item.add_marker(pytest.mark.timeout(0))
 
+
 RESULTS_DIR = Path(__file__).parent / "results"
 
 
