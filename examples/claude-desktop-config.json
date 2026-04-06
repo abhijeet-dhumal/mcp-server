@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "kubeflow": {
+      "command": "kubeflow-mcp",
+      "args": ["serve", "--persona", "ml-engineer"],
+      "env": {
+        "KUBECONFIG": "/path/to/your/.kube/config"
+      }
+    }
+  }
+}
