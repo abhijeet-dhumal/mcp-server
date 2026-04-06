@@ -21,22 +21,24 @@ Supports configuration from:
 
 Example config file (~/.kubeflow-mcp.yaml):
 
-    server:
-      clients:
-        - trainer
-        - optimizer
-      persona: ml-engineer
-      namespaces:
-        - ml-team-dev
-        - ml-team-prod
-      transport: stdio
+.. code-block:: yaml
 
-    trainer:
-      default_runtime: torch-distributed
+        server:
+            clients:
+                - trainer
+                - optimizer
+            persona: ml-engineer
+            namespaces:
+                - ml-team-dev
+                - ml-team-prod
+            transport: stdio
 
-    logging:
-      level: INFO
-      format: json
+        trainer:
+            default_runtime: torch-distributed
+
+        logging:
+            level: INFO
+            format: json
 """
 
 import logging

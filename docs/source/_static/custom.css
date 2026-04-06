@@ -307,6 +307,10 @@ dl.py dt.sig {
     word-wrap: break-word;
     word-break: break-word;
     max-width: 100%;
+    text-indent: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 0.5rem !important;
 }
 
 dl.py dt.sig-object {

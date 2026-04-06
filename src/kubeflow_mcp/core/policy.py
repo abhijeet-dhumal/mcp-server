@@ -22,27 +22,29 @@ Built-in personas define which tools are available to different user roles:
 
 Custom policies can be defined in ~/.kf-mcp-policy.yaml:
 
-    policy:
-      allow:
-        - category:discovery
-        - category:monitoring
-        - category:planning
-        - fine_tune
-      deny:
-        - risk:destructive
-        - delete_*
-      namespaces:
-        - ml-team-dev
-        - ml-team-prod
-      read_only: false
+.. code-block:: yaml
 
-    # Custom persona definitions
-    personas:
-      my-custom-role:
-        inherit: readonly
-        tools:
-          - fine_tune
-          - estimate_resources
+        policy:
+            allow:
+                - category:discovery
+                - category:monitoring
+                - category:planning
+                - fine_tune
+            deny:
+                - risk:destructive
+                - delete_*
+            namespaces:
+                - ml-team-dev
+                - ml-team-prod
+            read_only: false
+
+        # Custom persona definitions
+        personas:
+            my-custom-role:
+                inherit: readonly
+                tools:
+                    - fine_tune
+                    - estimate_resources
 """
 
 import fnmatch
