@@ -1,7 +1,10 @@
 MCP Prompts
 ===========
 
-Workflow prompts guide users through common tasks.
+Workflow prompts guide users through common tasks. 
+
+They do not run jobs by themselves. Instead, they generate structured guidance
+that helps users and agents call the right tools in the right order.
 
 .. list-table::
    :header-rows: 1
@@ -20,6 +23,34 @@ Workflow prompts guide users through common tasks.
    * - ``monitoring_workflow``
      - Monitor jobs and debug issues
 
+Prompt Inputs
+-------------
+
+Some prompts accept optional arguments to tailor their output.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 25 45
+
+   * - Prompt
+     - Optional arguments
+     - Notes
+   * - ``fine_tuning_workflow``
+     - ``model``, ``dataset``
+     - If omitted, prompt uses generic placeholders.
+   * - ``custom_training_workflow``
+     - ``training_type``
+     - Use ``script`` (default) or ``container``.
+   * - ``troubleshooting_guide``
+     - ``error_type``
+     - Examples: ``oom``, ``pending``, ``runtime``, ``permission``.
+   * - ``resource_planning``
+     - ``model_size``
+     - Can be used to adjust planning guidance.
+   * - ``monitoring_workflow``
+     - ``job_name``
+     - Focuses monitoring steps for a specific job.
+
 Usage
 -----
 
@@ -36,5 +67,26 @@ Programmatic:
 
    prompts = await client.list_prompts()
    prompt = await client.get_prompt("fine_tuning_workflow")
+
+Programmatic with arguments:
+
+.. code-block:: python
+
+   prompt = await client.get_prompt(
+     "fine_tuning_workflow",
+     arguments={
+       "model": "meta-llama/Llama-3.2-3B",
+       "dataset": "tatsu-lab/alpaca",
+     },
+   )
+
+Best Practices
+--------------
+
+- Start with prompt guidance, then execute tools step-by-step.
+- Treat submission calls as two-stage: preview first, then confirm.
+- Re-run planning prompts when model, batch size, or runtime changes.
+- Pair troubleshooting prompts with fresh events/logs from the target namespace.
+- Keep persona/policy constraints in mind; available tools may differ by role.
 
 Next: :doc:`resources` | :doc:`tools` | :doc:`agents`
