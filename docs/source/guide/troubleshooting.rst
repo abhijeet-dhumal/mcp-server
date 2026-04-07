@@ -65,12 +65,12 @@ GPU Issues
 If ``gpu_total=0``:
 
 - Verify NVIDIA device plugin is installed
-- Check node labels and taints
+- Check node labels and taints:
 
   .. code-block:: bash
 
-   kubectl get nodes -o=custom-columns=NAME:.metadata.name,GPU:'.status.allocatable.nvidia\.com/gpu'
-   kubectl get nodes -o=custom-columns=NAME:.metadata.name,TAINTS:.spec.taints
+     kubectl get nodes -o=custom-columns=NAME:.metadata.name,GPU:'.status.allocatable.nvidia\.com/gpu'
+     kubectl get nodes -o=custom-columns=NAME:.metadata.name,TAINTS:.spec.taints
 
 - Ensure GPU nodes are schedulable
 
