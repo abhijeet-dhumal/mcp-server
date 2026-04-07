@@ -42,9 +42,11 @@ try:
     from llama_index.core.memory import ChatMemoryBuffer
     from llama_index.core.tools import FunctionTool
     from llama_index.llms.ollama import Ollama
-    from rich.console import Console
+    from rich.align import Align
+    from rich.console import Console, Group
     from rich.markdown import Markdown
     from rich.panel import Panel
+    from rich.rule import Rule
     from rich.table import Table
     from rich.text import Text
 except ImportError:
@@ -106,6 +108,16 @@ AGENT-SPECIFIC:
 
 # System prompt combining server instructions with agent-specific hints
 SYSTEM_PROMPT = SERVER_INSTRUCTIONS + AGENT_HINTS
+
+# Header Banner
+KUBEFLOW_BANNER = r"""
+██╗  ██╗██╗   ██╗██████╗ ███████╗███████╗██╗      ██████╗ ██╗    ██╗     █████╗ ██╗     █████╗  ██████╗ ███████╗███╗   ██╗████████╗
+██║ ██╔╝██║   ██║██╔══██╗██╔════╝██╔════╝██║     ██╔═══██╗██║    ██║    ██╔══██╗██║    ██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝
+█████╔╝ ██║   ██║██████╔╝█████╗  █████╗  ██║     ██║   ██║██║ █╗ ██║    ███████║██║    ███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║   
+██╔═██╗ ██║   ██║██╔══██╗██╔══╝  ██╔══╝  ██║     ██║   ██║██║███╗██║    ██╔══██║██║    ██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║   
+██║  ██╗╚██████╔╝██████╔╝███████╗██║     ███████╗╚██████╔╝╚███╔███╔╝    ██║  ██║██║    ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║   
+╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝     ╚══════╝ ╚═════╝  ╚══╝╚══╝     ╚═╝  ╚═╝╚═╝    ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝
+"""
 
 
 def _create_tools_from_server() -> tuple[list[FunctionTool], str]:
@@ -524,34 +536,52 @@ def run_chat(
             - "progressive": 3 meta-tools, hierarchical discovery (~85 tokens)
             - "semantic": 2 meta-tools, embedding search (~69 tokens)
     """
-    # Welcome panel
-    welcome = Table.grid(padding=(0, 1))
-    welcome.add_column(justify="left")
-    welcome.add_row(Text("Kubeflow AI Agent", style="bold bright_cyan"))
-    welcome.add_row(Text(f"Model: {model}", style="bright_green"))
-    welcome.add_row(Text(f"Ollama: {url}", style="bright_white"))
-    mode_desc = TOOL_MODES.get(tool_mode, tool_mode)
-    welcome.add_row(Text(f"Tools: {mode_desc}", style="bright_yellow"))
-    welcome.add_row()
-    welcome.add_row(Text("Commands:", style="bright_yellow"))
-    welcome.add_row(Text("  /tools       - List available tools", style="white"))
-    welcome.add_row(
-        Text("  /mode        - Switch tool mode (static/progressive/semantic)", style="white")
+    # Refined Header Section
+    banner_text = Text(KUBEFLOW_BANNER, style="bold cyan")
+    # Subtitle for context
+    subtitle = Text("YOUR AI COMPANION FOR KUBEFLOW PLATFORM", style="dim white")
+
+    # Info line (centered table)
+    info_table = Table.grid(padding=(0, 2))
+    info_table.add_column(justify="center")
+    info_table.add_column(justify="center")
+    info_table.add_column(justify="center")
+    clean_url = url.replace("http://", "").rstrip("/")
+    info_table.add_row(
+        Text.assemble(("Model: ", "dim"), (model, "bold white")),
+        Text.assemble(("Server: ", "dim"), (clean_url, "bold white")),
+        Text.assemble(("Mode: ", "dim"), (tool_mode, "bold white")),
     )
-    welcome.add_row(Text("  /think       - Toggle thinking output", style="white"))
-    welcome.add_row(Text("  /file <path> - Read file and analyze it", style="white"))
-    welcome.add_row(Text("  /clear       - Clear conversation memory", style="white"))
-    welcome.add_row(Text("  exit         - Quit the agent", style="white"))
+
+    # Simple command guide
+    cmd_table = Table.grid(padding=(0, 2))
+    cmd_table.add_column(justify="right", style="cyan")
+    cmd_table.add_column(justify="left", style="dim")
+    cmd_table.add_row("/tools", "List available tools")
+    cmd_table.add_row("/think", "Toggle model reasoning")
+    cmd_table.add_row("/mode", "Switch tool discovery mode")
+    cmd_table.add_row("/clear", "Reset conversation state")
+
+    welcome_panel = Panel(
+        Group(
+            Align.center(banner_text),
+            Align.center(subtitle),
+            Align.center(Rule(style="dim cyan")),
+            Align.center(info_table),
+            Rule(style="dim", characters=" "),
+            Align.center(cmd_table)
+        ),
+        border_style="dim cyan",
+        padding=(1, 2)
+    )
+
+    # Hide datetime
+    if hasattr(console, "get_datetime"):
+        console.get_datetime = lambda: ""
 
     console.print()
-    console.print(
-        Panel(
-            welcome,
-            title="[bold bright_white]🚀 Ollama Agent[/bold bright_white]",
-            border_style="bright_blue",
-            padding=(1, 2),
-        )
-    )
+    console.print(welcome_panel)
+    console.print()
 
     # Check model availability
     console.print("[bright_cyan]Checking model...[/bright_cyan]", end="\r")
