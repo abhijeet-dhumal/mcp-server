@@ -78,6 +78,10 @@ agents = [
     "rich>=13.0",
 ]
 
+[project.urls]
+Repository = "https://github.com/kubeflow/mcp-server"
+Issues = "https://github.com/kubeflow/mcp-server/issues"
+
 [project.scripts]
 kubeflow-mcp = "kubeflow_mcp.cli:cli"
 
