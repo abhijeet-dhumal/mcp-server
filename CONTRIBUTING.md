@@ -1,6 +1,6 @@
 # Contributing to Kubeflow MCP Server
 
-Thank you for your interest in contributing!
+Thank you for your interest in contributing! Checkout Kubeflow Contributing Guide here for more info https://www.kubeflow.org/docs/about/contributing/
 
 ## Getting Started
 
@@ -77,6 +77,10 @@ We use [Conventional Commits](https://www.conventionalcommits.org/):
 ## Code of Conduct
 
 This project follows the [Kubeflow Code of Conduct](https://github.com/kubeflow/community/blob/master/CODE_OF_CONDUCT.md).
+
+## AI Policy
+
+We encourage using AI tools to help with development. Please review Kubeflow AI Policy at https://www.kubeflow.org/docs/about/ai_policy/
 
 ## Questions?
 

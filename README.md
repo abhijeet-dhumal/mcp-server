@@ -4,7 +4,7 @@ AI-powered interface for Kubeflow Training via [Model Context Protocol](https://
 
 Proposal: https://github.com/kubeflow/community/tree/master/proposals/936-kubeflow-mcp-server
 
-> ⚠️ **Note:** This project is in early development. We currently accept PRs only after prior discussion on Slack — join `#kubeflow-ml-experience` on the [CNCF Slack](https://www.kubeflow.org/docs/about/community/).
+> ⚠️ **Note:** This project is in early development. We currently accept PRs only after prior discussion on Slack — join `#kubeflow-ml-experience` on the [CNCF Slack](https://www.kubeflow.org/docs/about/community/). For any discussions, please join our ML Expericne WG bi-weekly meeting.
 
 ## Overview
 
