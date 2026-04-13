@@ -72,7 +72,7 @@ docs = [
 ]
 agents = [
     "kubeflow>=0.4.0",
-    "llama-index-core>=0.12",
+    "llama-index-core>=0.14.20",
     "llama-index-llms-ollama>=0.4",
     "llama-index-tools-mcp>=0.2",
     "rich>=13.0",
