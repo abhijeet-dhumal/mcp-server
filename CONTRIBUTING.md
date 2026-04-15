@@ -40,7 +40,7 @@ Before creating git commits, ensure you have installed pre-commit hooks:
 uv run pre-commit install
 ```
 
-The pre-commit hooks ensure code quality and consistency (linting with `ruff`, type checking with `mypy`). They are also executed in CI.
+The pre-commit hooks ensure code quality and consistency (linting and formatting with `ruff`). They are also executed in CI.
 
 To run verification checks locally:
 

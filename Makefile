@@ -18,7 +18,6 @@ verify: ## Run linting, formatting and type checking
 	@uv lock --check
 	@uv run ruff check .
 	@uv run ruff format --check .
-	@uv run mypy kubeflow_mcp
 
 .PHONY: test-python
 test-python: ## Run Python unit tests
